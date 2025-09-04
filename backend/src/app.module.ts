@@ -6,6 +6,7 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { AiModule } from './modules/ai/ai.module';
+import { CollaborationModule } from './modules/collaboration/collaboration.module';
 
 @Module({
     imports: [
@@ -17,6 +18,7 @@ import { AiModule } from './modules/ai/ai.module';
         AuthModule,
         UsersModule,
         AiModule,
+        CollaborationModule,
     ],
     controllers: [AppController],
     providers: [AppService],
