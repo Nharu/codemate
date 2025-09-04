@@ -1,0 +1,10 @@
+# Backend Modules Directory
+
+이 디렉토리는 NestJS 모듈들을 포함합니다.
+
+현재 구조:
+- auth/         # 인증 및 권한 관리
+- users/        # 사용자 관리
+- projects/     # 프로젝트 관리  
+- ai/           # AI 코드 리뷰 서비스
+- collab/       # 실시간 협업 기능

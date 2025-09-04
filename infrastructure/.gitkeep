@@ -1,0 +1,8 @@
+# Infrastructure Directory
+
+이 디렉토리는 Terraform을 사용한 AWS 인프라 코드를 포함합니다.
+
+구조:
+- environments/ # dev, staging, prod 환경별 설정
+- modules/      # 재사용 가능한 Terraform 모듈들
+- scripts/      # 배포 및 관리 스크립트
