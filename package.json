@@ -1,0 +1,51 @@
+{
+  "name": "codemate",
+  "version": "0.1.0",
+  "description": "AI-powered online code collaboration platform",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "build": "npm run build --workspaces",
+    "build:frontend": "npm run build --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "test": "npm run test --workspaces",
+    "install:all": "npm install && npm install --workspaces",
+    "clean": "npm run clean --workspaces && rm -rf node_modules",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nharu/codemate.git"
+  },
+  "keywords": [
+    "ai",
+    "code-review",
+    "collaboration",
+    "real-time",
+    "claude",
+    "gpt",
+    "next.js",
+    "nestjs",
+    "typescript"
+  ],
+  "author": "이재현 <nano@nano.seoul.kr>",
+  "license": "MIT"
+}
