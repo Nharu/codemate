@@ -3,14 +3,14 @@ version: '3.8'
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     container_name: codemate-postgres
     restart: unless-stopped
     ports:
       - "5432:5432"
     environment:
       POSTGRES_DB: codemate_dev
-      POSTGRES_USER: postgres
+      POSTGRES_USER: nano
       POSTGRES_PASSWORD: ***REMOVED***
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -33,7 +33,7 @@ services:
 
   # Adminer (Database GUI)
   adminer:
-    image: adminer:4-standalone
+    image: adminer:latest
     container_name: codemate-adminer
     restart: unless-stopped
     ports:
@@ -47,7 +47,7 @@ services:
 
   # Redis Commander (Redis GUI)
   redis-commander:
-    image: rediscommander/redis-commander:latest
+    image: ghcr.io/joeferner/redis-commander:latest
     container_name: codemate-redis-commander
     restart: unless-stopped
     ports:
