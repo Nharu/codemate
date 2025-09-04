@@ -9,6 +9,7 @@
     "shared"
   ],
   "scripts": {
+    "prepare": "husky install",
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev:backend": "npm run dev --workspace=backend",
@@ -16,6 +17,12 @@
     "build:frontend": "npm run build --workspace=frontend",
     "build:backend": "npm run build --workspace=backend",
     "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "lint:fix": "npm run lint:fix --workspaces",
+    "format": "npm run format --workspaces",
+    "type-check": "npm run type-check --workspaces",
+    "pre-commit": ".husky/pre-commit",
+    "check": "npm run format && npm run lint:fix && npm run type-check",
     "install:all": "npm install && npm install --workspaces",
     "clean": "npm run clean --workspaces && rm -rf node_modules",
     "docker:up": "docker-compose up -d",
@@ -25,7 +32,7 @@
   "devDependencies": {
     "concurrently": "^8.2.2",
     "husky": "^8.0.3",
-    "lint-staged": "^15.2.0"
+    "lint-staged": "^15.5.2"
   },
   "engines": {
     "node": ">=22.0.0",

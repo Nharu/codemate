@@ -1,0 +1,35 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Running pre-commit checks..."
+
+# Frontend checks
+if [ -d "frontend" ]; then
+  echo "📝 Checking frontend..."
+  cd frontend
+  echo "  ✨ Prettier format..."
+  npx prettier --write "src/**/*.{ts,tsx,js,jsx,json,css,md}"
+  echo "  🔧 ESLint fix..."
+  npx eslint "src/**/*.{ts,tsx,js,jsx}" --fix
+  echo "  🔍 Type checking..."
+  npx tsc --noEmit
+  cd ..
+fi
+
+# Backend checks
+if [ -d "backend" ]; then
+  echo "📝 Checking backend..."
+  cd backend
+  echo "  ✨ Prettier format..."
+  npx prettier --write "src/**/*.{ts,js,json}"
+  echo "  🔧 ESLint fix..."
+  npx eslint "src/**/*.ts" --fix
+  echo "  🔍 Type checking..."
+  npx tsc --noEmit
+  cd ..
+fi
+
+# Add formatted files back to git
+git add .
+
+echo "✅ All checks passed!"
