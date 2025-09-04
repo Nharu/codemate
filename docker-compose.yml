@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: codemate-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: codemate_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ***REMOVED***
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - codemate-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: codemate-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - codemate-network
+
+  # Adminer (Database GUI)
+  adminer:
+    image: adminer:4-standalone
+    container_name: codemate-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    networks:
+      - codemate-network
+    depends_on:
+      - postgres
+
+  # Redis Commander (Redis GUI)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: codemate-redis-commander
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    networks:
+      - codemate-network
+    depends_on:
+      - redis
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  codemate-network:
+    driver: bridge
