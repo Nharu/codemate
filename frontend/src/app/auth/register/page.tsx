@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
+import { useRegister } from '@/hooks/useRegister';
 
 interface RegisterForm {
     email: string;
@@ -30,9 +31,9 @@ export default function RegisterPage() {
         ***REMOVED***: '',
         confirmPassword: '',
     });
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [success, setSuccess] = useState(false);
+
+    const registerMutation = useRegister();
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setForm({
@@ -77,48 +78,15 @@ export default function RegisterPage() {
 
         if (!validateForm()) return;
 
-        setLoading(true);
-        setError('');
-
-        try {
-            const response = await fetch(
-                'http://localhost:3001/auth/register',
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        email: form.email,
-                        username: form.username,
-                        ***REMOVED***: form.***REMOVED***,
-                    }),
-                },
-            );
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || '회원가입에 실패했습니다.');
-            }
-
-            setSuccess(true);
-            setForm({
-                email: '',
-                username: '',
-                ***REMOVED***: '',
-                confirmPassword: '',
-            });
-        } catch (err) {
-            setError(
-                err instanceof Error ? err.message : '회원가입에 실패했습니다.',
-            );
-        } finally {
-            setLoading(false);
-        }
+        registerMutation.mutate({
+            email: form.email,
+            username: form.username,
+            ***REMOVED***: form.***REMOVED***,
+        });
     };
 
-    if (success) {
+    // 회원가입 성공 시 표시할 화면
+    if (registerMutation.isSuccess) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
                 <Card className="w-full max-w-md">
@@ -153,9 +121,11 @@ export default function RegisterPage() {
                 </CardHeader>
                 <form onSubmit={handleSubmit}>
                     <CardContent className="space-y-4">
-                        {error && (
+                        {(error || registerMutation.error) && (
                             <Alert variant="destructive">
-                                <AlertDescription>{error}</AlertDescription>
+                                <AlertDescription>
+                                    {error || registerMutation.error?.message}
+                                </AlertDescription>
                             </Alert>
                         )}
 
@@ -168,7 +138,7 @@ export default function RegisterPage() {
                                 placeholder="your@email.com"
                                 value={form.email}
                                 onChange={handleChange}
-                                disabled={loading}
+                                disabled={registerMutation.isPending}
                             />
                         </div>
 
@@ -181,7 +151,7 @@ export default function RegisterPage() {
                                 placeholder="사용자명을 입력하세요"
                                 value={form.username}
                                 onChange={handleChange}
-                                disabled={loading}
+                                disabled={registerMutation.isPending}
                             />
                         </div>
 
@@ -194,7 +164,7 @@ export default function RegisterPage() {
                                 placeholder="비밀번호를 입력하세요"
                                 value={form.***REMOVED***}
                                 onChange={handleChange}
-                                disabled={loading}
+                                disabled={registerMutation.isPending}
                             />
                         </div>
 
@@ -209,7 +179,7 @@ export default function RegisterPage() {
                                 placeholder="비밀번호를 다시 입력하세요"
                                 value={form.confirmPassword}
                                 onChange={handleChange}
-                                disabled={loading}
+                                disabled={registerMutation.isPending}
                             />
                         </div>
                     </CardContent>
@@ -218,9 +188,9 @@ export default function RegisterPage() {
                         <Button
                             type="submit"
                             className="w-full"
-                            disabled={loading}
+                            disabled={registerMutation.isPending}
                         >
-                            {loading && (
+                            {registerMutation.isPending && (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             )}
                             회원가입

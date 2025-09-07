@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { signIn, getSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -63,33 +64,26 @@ export default function LoginPage() {
         setError('');
 
         try {
-            const response = await fetch('http://localhost:3001/auth/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    email: form.email,
-                    ***REMOVED***: form.***REMOVED***,
-                }),
+            const result = await signIn('credentials', {
+                email: form.email,
+                ***REMOVED***: form.***REMOVED***,
+                redirect: false,
             });
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || '로그인에 실패했습니다.');
+            if (result?.error) {
+                setError(
+                    '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.',
+                );
+                return;
             }
 
-            // JWT 토큰을 로컬 스토리지에 저장
-            localStorage.setItem('token', data.access_token);
-            localStorage.setItem('user', JSON.stringify(data.user));
-
-            // 메인 페이지로 리다이렉트
-            router.push('/');
-        } catch (err) {
-            setError(
-                err instanceof Error ? err.message : '로그인에 실패했습니다.',
-            );
+            // 로그인 성공 시 세션 확인 후 리다이렉트
+            const session = await getSession();
+            if (session) {
+                router.push('/');
+            }
+        } catch {
+            setError('로그인 중 오류가 발생했습니다.');
         } finally {
             setLoading(false);
         }
