@@ -20,14 +20,14 @@ import { Loader2 } from 'lucide-react';
 
 interface LoginForm {
     email: string;
-    ***REMOVED***: string;
+    password: string;
 }
 
 export default function LoginPage() {
     const router = useRouter();
     const [form, setForm] = useState<LoginForm>({
         email: '',
-        ***REMOVED***: '',
+        password: '',
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -41,7 +41,7 @@ export default function LoginPage() {
     };
 
     const validateForm = () => {
-        if (!form.email || !form.***REMOVED***) {
+        if (!form.email || !form.password) {
             setError('이메일과 비밀번호를 입력해주세요.');
             return false;
         }
@@ -66,7 +66,7 @@ export default function LoginPage() {
         try {
             const result = await signIn('credentials', {
                 email: form.email,
-                ***REMOVED***: form.***REMOVED***,
+                password: form.password,
                 redirect: false,
             });
 
@@ -120,13 +120,13 @@ export default function LoginPage() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="***REMOVED***">비밀번호</Label>
+                            <Label htmlFor="password">비밀번호</Label>
                             <Input
-                                id="***REMOVED***"
-                                name="***REMOVED***"
-                                type="***REMOVED***"
+                                id="password"
+                                name="password"
+                                type="password"
                                 placeholder="비밀번호를 입력하세요"
-                                value={form.***REMOVED***}
+                                value={form.password}
                                 onChange={handleChange}
                                 disabled={loading}
                             />

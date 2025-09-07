@@ -53,6 +53,11 @@ export default function Header() {
                             </div>
                         ) : session ? (
                             <div className="flex items-center space-x-3">
+                                <Link href="/dashboard">
+                                    <Button variant="ghost" size="sm">
+                                        대시보드
+                                    </Button>
+                                </Link>
                                 <div className="flex items-center space-x-2">
                                     <User size={20} />
                                     <span className="text-sm font-medium">

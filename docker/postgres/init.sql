@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     username VARCHAR(50) UNIQUE NOT NULL,
-    ***REMOVED***_hash VARCHAR(255),
+    password_hash VARCHAR(255),
     avatar_url VARCHAR(255),
     role VARCHAR(20) DEFAULT 'developer',
     created_at TIMESTAMP DEFAULT NOW(),
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS files (
 );
 
 -- Insert sample data
-INSERT INTO users (email, username, ***REMOVED***_hash, role) VALUES 
+INSERT INTO users (email, username, password_hash, role) VALUES 
 ('admin@codemate.dev', 'admin', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin'),
 ('demo@codemate.dev', 'demo', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'developer')
 ON CONFLICT (email) DO NOTHING;

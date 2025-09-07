@@ -12,7 +12,7 @@ import { User } from '../modules/users/user.entity';
                 host: configService.get<string>('DATABASE_HOST'),
                 port: configService.get<number>('DATABASE_PORT'),
                 username: configService.get<string>('DATABASE_USERNAME'),
-                ***REMOVED***: configService.get<string>('DATABASE_PASSWORD'),
+                password: configService.get<string>('DATABASE_PASSWORD'),
                 database: configService.get<string>('DATABASE_NAME'),
                 entities: [User],
                 synchronize:

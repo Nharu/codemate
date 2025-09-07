@@ -8,10 +8,10 @@ const authOptions: NextAuthOptions = {
             name: 'credentials',
             credentials: {
                 email: { label: 'Email', type: 'email' },
-                ***REMOVED***: { label: 'Password', type: '***REMOVED***' },
+                password: { label: 'Password', type: 'password' },
             },
             async authorize(credentials) {
-                if (!credentials?.email || !credentials?.***REMOVED***) {
+                if (!credentials?.email || !credentials?.password) {
                     return null;
                 }
 
@@ -25,7 +25,7 @@ const authOptions: NextAuthOptions = {
                             },
                             body: JSON.stringify({
                                 email: credentials.email,
-                                ***REMOVED***: credentials.***REMOVED***,
+                                password: credentials.password,
                             }),
                         },
                     );

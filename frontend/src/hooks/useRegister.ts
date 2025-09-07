@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 interface RegisterData {
     email: string;
     username: string;
-    ***REMOVED***: string;
+    password: string;
 }
 
 interface RegisterResponse {

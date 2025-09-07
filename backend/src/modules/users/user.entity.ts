@@ -18,7 +18,7 @@ export class User {
     username: string;
 
     @Column()
-    ***REMOVED***: string;
+    password: string;
 
     @Column({ nullable: true })
     avatar_url: string;

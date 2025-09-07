@@ -19,11 +19,11 @@ export class RegisterDto {
     username: string;
 
     @ApiProperty({
-        example: '***REMOVED***123',
+        example: 'password123',
         description: 'Password (minimum 6 characters)',
         minLength: 6,
     })
     @IsString()
     @MinLength(6)
-    ***REMOVED***: string;
+    password: string;
 }

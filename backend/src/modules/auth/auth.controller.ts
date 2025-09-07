@@ -4,6 +4,7 @@ import {
     Body,
     UseGuards,
     Get,
+    Put,
     Request,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -16,6 +17,7 @@ import {
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { User } from '../users/user.entity';
 
 @ApiTags('Authentication')
@@ -46,7 +48,25 @@ export class AuthController {
     @ApiResponse({ status: 200, description: 'User profile retrieved' })
     @ApiResponse({ status: 401, description: 'Unauthorized' })
     getProfile(@Request() req: { user: User }) {
-        const { ***REMOVED***: _, ...userWithoutPassword } = req.user;
+        const { password: _, ...userWithoutPassword } = req.user;
+        return userWithoutPassword;
+    }
+
+    @UseGuards(AuthGuard('jwt'))
+    @Put('profile')
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Update user profile' })
+    @ApiResponse({ status: 200, description: 'Profile updated successfully' })
+    @ApiResponse({ status: 401, description: 'Unauthorized' })
+    async updateProfile(
+        @Request() req: { user: User },
+        @Body() updateProfileDto: UpdateProfileDto,
+    ) {
+        const updatedUser = await this.authService.updateProfile(
+            req.user.id,
+            updateProfileDto,
+        );
+        const { password: _, ...userWithoutPassword } = updatedUser;
         return userWithoutPassword;
     }
 }

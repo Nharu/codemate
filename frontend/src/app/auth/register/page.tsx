@@ -20,7 +20,7 @@ import { useRegister } from '@/hooks/useRegister';
 interface RegisterForm {
     email: string;
     username: string;
-    ***REMOVED***: string;
+    password: string;
     confirmPassword: string;
 }
 
@@ -28,7 +28,7 @@ export default function RegisterPage() {
     const [form, setForm] = useState<RegisterForm>({
         email: '',
         username: '',
-        ***REMOVED***: '',
+        password: '',
         confirmPassword: '',
     });
     const [error, setError] = useState('');
@@ -47,19 +47,19 @@ export default function RegisterPage() {
         if (
             !form.email ||
             !form.username ||
-            !form.***REMOVED*** ||
+            !form.password ||
             !form.confirmPassword
         ) {
             setError('모든 필드를 입력해주세요.');
             return false;
         }
 
-        if (form.***REMOVED*** !== form.confirmPassword) {
+        if (form.password !== form.confirmPassword) {
             setError('비밀번호가 일치하지 않습니다.');
             return false;
         }
 
-        if (form.***REMOVED***.length < 6) {
+        if (form.password.length < 6) {
             setError('비밀번호는 6자리 이상이어야 합니다.');
             return false;
         }
@@ -81,7 +81,7 @@ export default function RegisterPage() {
         registerMutation.mutate({
             email: form.email,
             username: form.username,
-            ***REMOVED***: form.***REMOVED***,
+            password: form.password,
         });
     };
 
@@ -156,13 +156,13 @@ export default function RegisterPage() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="***REMOVED***">비밀번호</Label>
+                            <Label htmlFor="password">비밀번호</Label>
                             <Input
-                                id="***REMOVED***"
-                                name="***REMOVED***"
-                                type="***REMOVED***"
+                                id="password"
+                                name="password"
+                                type="password"
                                 placeholder="비밀번호를 입력하세요"
-                                value={form.***REMOVED***}
+                                value={form.password}
                                 onChange={handleChange}
                                 disabled={registerMutation.isPending}
                             />
@@ -175,7 +175,7 @@ export default function RegisterPage() {
                             <Input
                                 id="confirmPassword"
                                 name="confirmPassword"
-                                type="***REMOVED***"
+                                type="password"
                                 placeholder="비밀번호를 다시 입력하세요"
                                 value={form.confirmPassword}
                                 onChange={handleChange}

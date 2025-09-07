@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { User } from './user.entity';
 import { RegisterDto } from '../auth/dto/register.dto';
+import { UpdateProfileDto } from '../auth/dto/update-profile.dto';
 
 @Injectable()
 export class UsersService {
@@ -13,14 +14,14 @@ export class UsersService {
     ) {}
 
     async create(registerDto: RegisterDto): Promise<User> {
-        const { email, username, ***REMOVED*** } = registerDto;
+        const { email, username, password } = registerDto;
 
-        const hashedPassword = await bcrypt.hash(***REMOVED***, 10);
+        const hashedPassword = await bcrypt.hash(password, 10);
 
         const user = this.userRepository.create({
             email,
             username,
-            ***REMOVED***: hashedPassword,
+            password: hashedPassword,
         });
 
         return await this.userRepository.save(user);
@@ -39,5 +40,21 @@ export class UsersService {
         hashedPassword: string,
     ): Promise<boolean> {
         return await bcrypt.compare(plainPassword, hashedPassword);
+    }
+
+    async updateProfile(
+        userId: string,
+        updateProfileDto: UpdateProfileDto,
+    ): Promise<User> {
+        await this.userRepository.update(userId, updateProfileDto);
+        const updatedUser = await this.userRepository.findOne({
+            where: { id: userId },
+        });
+
+        if (!updatedUser) {
+            throw new Error('User not found');
+        }
+
+        return updatedUser;
     }
 }

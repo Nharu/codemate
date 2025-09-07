@@ -7,6 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { User } from '../users/user.entity';
 
 @Injectable()
@@ -28,7 +29,7 @@ export class AuthService {
         }
 
         const user = await this.usersService.create(registerDto);
-        const { ***REMOVED***: _, ...userWithoutPassword } = user;
+        const { password: _, ...userWithoutPassword } = user;
 
         const payload = { email: user.email, sub: user.id };
         const access_token = this.jwtService.sign(payload);
@@ -49,15 +50,15 @@ export class AuthService {
         }
 
         const isPasswordValid = await this.usersService.validatePassword(
-            loginDto.***REMOVED***,
-            user.***REMOVED***,
+            loginDto.password,
+            user.password,
         );
 
         if (!isPasswordValid) {
             throw new UnauthorizedException('Invalid credentials');
         }
 
-        const { ***REMOVED***: _, ...userWithoutPassword } = user;
+        const { password: _, ...userWithoutPassword } = user;
         const payload = { email: user.email, sub: user.id };
         const access_token = this.jwtService.sign(payload);
 
@@ -72,5 +73,12 @@ export class AuthService {
         email: string;
     }): Promise<User | null> {
         return await this.usersService.findById(payload.sub);
+    }
+
+    async updateProfile(
+        userId: string,
+        updateProfileDto: UpdateProfileDto,
+    ): Promise<User> {
+        return await this.usersService.updateProfile(userId, updateProfileDto);
     }
 }
