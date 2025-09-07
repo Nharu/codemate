@@ -6,7 +6,11 @@ import {
     Get,
     Put,
     Request,
+    UseInterceptors,
+    UploadedFile,
+    BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
 import {
     ApiTags,
@@ -19,11 +23,15 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { User } from '../users/user.entity';
+import { StorageService } from '../storage/storage.service';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-    constructor(private readonly authService: AuthService) {}
+    constructor(
+        private readonly authService: AuthService,
+        private readonly storageService: StorageService,
+    ) {}
 
     @Post('register')
     @ApiOperation({ summary: 'Register a new user' })
@@ -66,6 +74,47 @@ export class AuthController {
             req.user.id,
             updateProfileDto,
         );
+        const { password: _, ...userWithoutPassword } = updatedUser;
+        return userWithoutPassword;
+    }
+
+    @UseGuards(AuthGuard('jwt'))
+    @Post('profile/avatar')
+    @UseInterceptors(FileInterceptor('avatar'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Upload user avatar' })
+    @ApiResponse({ status: 200, description: 'Avatar uploaded successfully' })
+    @ApiResponse({ status: 400, description: 'Invalid file' })
+    @ApiResponse({ status: 401, description: 'Unauthorized' })
+    async uploadAvatar(
+        @Request() req: { user: User },
+        @UploadedFile() file: Express.Multer.File,
+    ) {
+        if (!file) {
+            throw new BadRequestException('No file provided');
+        }
+
+        // Validate the image file
+        this.storageService.validateImageFile(file);
+
+        // Delete old avatar if exists
+        if (req.user.avatar_url) {
+            try {
+                await this.storageService.deleteFile(req.user.avatar_url);
+            } catch (error) {
+                // Log but don't fail if old file deletion fails
+                console.warn('Failed to delete old avatar:', error);
+            }
+        }
+
+        // Upload new avatar
+        const avatarUrl = await this.storageService.uploadFile(file, 'avatars');
+
+        // Update user profile with new avatar URL
+        const updatedUser = await this.authService.updateProfile(req.user.id, {
+            avatar_url: avatarUrl,
+        });
+
         const { password: _, ...userWithoutPassword } = updatedUser;
         return userWithoutPassword;
     }

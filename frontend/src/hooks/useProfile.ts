@@ -22,6 +22,18 @@ const updateUserProfile = async (
     return response.data;
 };
 
+const uploadAvatar = async (file: File): Promise<User> => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    const response = await apiClient.post('/auth/profile/avatar', formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    });
+    return response.data;
+};
+
 export function useProfile() {
     return useQuery({
         queryKey: ['profile'],
@@ -41,6 +53,21 @@ export function useUpdateProfile() {
         },
         onError: (error) => {
             console.error('Profile update failed:', error);
+        },
+    });
+}
+
+export function useUploadAvatar() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: uploadAvatar,
+        onSuccess: (updatedUser) => {
+            queryClient.setQueryData(['profile'], updatedUser);
+            queryClient.invalidateQueries({ queryKey: ['profile'] });
+        },
+        onError: (error) => {
+            console.error('Avatar upload failed:', error);
         },
     });
 }

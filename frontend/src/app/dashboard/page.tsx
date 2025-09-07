@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import Image from 'next/image';
 import { useProfile } from '@/hooks/useProfile';
 import { Button } from '@/components/ui/button';
 import {
@@ -81,6 +82,28 @@ export default function DashboardPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                    <div className="flex items-center space-x-4 mb-4">
+                        {/* Profile Avatar */}
+                        <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-gray-200 bg-gray-100 flex items-center justify-center">
+                            {profile?.avatar_url ? (
+                                <Image
+                                    src={profile.avatar_url}
+                                    alt="Profile"
+                                    width={64}
+                                    height={64}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <User className="w-6 h-6 text-gray-400" />
+                            )}
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-semibold">
+                                {profile?.username}
+                            </h3>
+                            <p className="text-gray-600">{profile?.email}</p>
+                        </div>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="flex items-center space-x-2">
                             <Mail className="h-4 w-4 text-gray-500" />

@@ -1,12 +1,15 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useSession, signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
-import { User, LogOut } from 'lucide-react';
+import { User, LogOut, Settings } from 'lucide-react';
+import { useProfile } from '@/hooks/useProfile';
 
 export default function Header() {
     const { data: session, status } = useSession();
+    const { data: profile } = useProfile();
 
     const handleSignOut = () => {
         signOut({ callbackUrl: '/' });
@@ -59,11 +62,35 @@ export default function Header() {
                                     </Button>
                                 </Link>
                                 <div className="flex items-center space-x-2">
-                                    <User size={20} />
+                                    {/* Profile Image or User Icon */}
+                                    <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-300 bg-gray-100 flex items-center justify-center">
+                                        {profile?.avatar_url ? (
+                                            <Image
+                                                src={profile.avatar_url}
+                                                alt="Profile"
+                                                width={32}
+                                                height={32}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <User
+                                                size={16}
+                                                className="text-gray-500"
+                                            />
+                                        )}
+                                    </div>
                                     <span className="text-sm font-medium">
-                                        {session.user?.name}
+                                        {profile?.username ||
+                                            session.user?.name}
                                     </span>
                                 </div>
+
+                                {/* Settings Button */}
+                                <Link href="/dashboard/settings">
+                                    <Button variant="ghost" size="sm">
+                                        <Settings size={16} />
+                                    </Button>
+                                </Link>
                                 <Button
                                     variant="outline"
                                     size="sm"
