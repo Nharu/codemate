@@ -6,6 +6,7 @@ export interface User {
     email: string;
     username: string;
     avatar_url?: string;
+    hasPassword?: boolean; // OAuth 사용자 여부 확인용
     created_at: string;
     updated_at: string;
 }

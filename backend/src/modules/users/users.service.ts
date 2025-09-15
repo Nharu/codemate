@@ -42,6 +42,21 @@ export class UsersService {
         return await bcrypt.compare(plainPassword, hashedPassword);
     }
 
+    async createOAuthUser(userData: {
+        email: string;
+        username: string;
+        avatar_url?: string;
+    }): Promise<User> {
+        const user = this.userRepository.create({
+            email: userData.email,
+            username: userData.username,
+            password: null, // OAuth 사용자는 패스워드가 없음
+            avatar_url: userData.avatar_url,
+        });
+
+        return await this.userRepository.save(user);
+    }
+
     async updateProfile(
         userId: string,
         updateProfileDto: UpdateProfileDto,
@@ -56,5 +71,10 @@ export class UsersService {
         }
 
         return updatedUser;
+    }
+
+    async updatePassword(userId: string, newPassword: string): Promise<void> {
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await this.userRepository.update(userId, { password: hashedPassword });
     }
 }

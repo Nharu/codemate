@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,71 +20,43 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
 import { useRegister } from '@/hooks/useRegister';
 
-interface RegisterForm {
-    email: string;
-    username: string;
-    password: string;
-    confirmPassword: string;
-}
+const registerSchema = z
+    .object({
+        email: z.string().email('유효한 이메일 주소를 입력해주세요'),
+        username: z
+            .string()
+            .min(2, '사용자명은 최소 2자 이상이어야 합니다')
+            .max(50, '사용자명은 최대 50자까지 가능합니다'),
+        password: z.string().min(6, '비밀번호는 최소 6자 이상이어야 합니다'),
+        confirmPassword: z.string().min(1, '비밀번호 확인을 입력해주세요'),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+        message: '비밀번호와 비밀번호 확인이 일치하지 않습니다',
+        path: ['confirmPassword'],
+    });
+
+type RegisterForm = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
-    const [form, setForm] = useState<RegisterForm>({
-        email: '',
-        username: '',
-        password: '',
-        confirmPassword: '',
-    });
     const [error, setError] = useState('');
-
     const registerMutation = useRegister();
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setForm({
-            ...form,
-            [e.target.name]: e.target.value,
-        });
-        if (error) setError('');
-    };
+    const form = useForm<RegisterForm>({
+        resolver: zodResolver(registerSchema),
+        defaultValues: {
+            email: '',
+            username: '',
+            password: '',
+            confirmPassword: '',
+        },
+    });
 
-    const validateForm = () => {
-        if (
-            !form.email ||
-            !form.username ||
-            !form.password ||
-            !form.confirmPassword
-        ) {
-            setError('모든 필드를 입력해주세요.');
-            return false;
-        }
-
-        if (form.password !== form.confirmPassword) {
-            setError('비밀번호가 일치하지 않습니다.');
-            return false;
-        }
-
-        if (form.password.length < 6) {
-            setError('비밀번호는 6자리 이상이어야 합니다.');
-            return false;
-        }
-
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(form.email)) {
-            setError('유효한 이메일 주소를 입력해주세요.');
-            return false;
-        }
-
-        return true;
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!validateForm()) return;
-
+    const onSubmit = (data: RegisterForm) => {
+        setError('');
         registerMutation.mutate({
-            email: form.email,
-            username: form.username,
-            password: form.password,
+            email: data.email,
+            username: data.username,
+            password: data.password,
         });
     };
 
@@ -119,7 +94,7 @@ export default function RegisterPage() {
                         새 계정을 만들어 CodeMate를 시작하세요
                     </CardDescription>
                 </CardHeader>
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={form.handleSubmit(onSubmit)}>
                     <CardContent className="space-y-4">
                         {(error || registerMutation.error) && (
                             <Alert variant="destructive">
@@ -133,39 +108,48 @@ export default function RegisterPage() {
                             <Label htmlFor="email">이메일</Label>
                             <Input
                                 id="email"
-                                name="email"
                                 type="email"
                                 placeholder="your@email.com"
-                                value={form.email}
-                                onChange={handleChange}
+                                {...form.register('email')}
                                 disabled={registerMutation.isPending}
                             />
+                            {form.formState.errors.email && (
+                                <p className="text-sm text-red-500">
+                                    {form.formState.errors.email.message}
+                                </p>
+                            )}
                         </div>
 
                         <div className="space-y-2">
                             <Label htmlFor="username">사용자명</Label>
                             <Input
                                 id="username"
-                                name="username"
                                 type="text"
                                 placeholder="사용자명을 입력하세요"
-                                value={form.username}
-                                onChange={handleChange}
+                                {...form.register('username')}
                                 disabled={registerMutation.isPending}
                             />
+                            {form.formState.errors.username && (
+                                <p className="text-sm text-red-500">
+                                    {form.formState.errors.username.message}
+                                </p>
+                            )}
                         </div>
 
                         <div className="space-y-2">
                             <Label htmlFor="password">비밀번호</Label>
                             <Input
                                 id="password"
-                                name="password"
                                 type="password"
                                 placeholder="비밀번호를 입력하세요"
-                                value={form.password}
-                                onChange={handleChange}
+                                {...form.register('password')}
                                 disabled={registerMutation.isPending}
                             />
+                            {form.formState.errors.password && (
+                                <p className="text-sm text-red-500">
+                                    {form.formState.errors.password.message}
+                                </p>
+                            )}
                         </div>
 
                         <div className="space-y-2">
@@ -174,13 +158,19 @@ export default function RegisterPage() {
                             </Label>
                             <Input
                                 id="confirmPassword"
-                                name="confirmPassword"
                                 type="password"
                                 placeholder="비밀번호를 다시 입력하세요"
-                                value={form.confirmPassword}
-                                onChange={handleChange}
+                                {...form.register('confirmPassword')}
                                 disabled={registerMutation.isPending}
                             />
+                            {form.formState.errors.confirmPassword && (
+                                <p className="text-sm text-red-500">
+                                    {
+                                        form.formState.errors.confirmPassword
+                                            .message
+                                    }
+                                </p>
+                            )}
                         </div>
                     </CardContent>
 

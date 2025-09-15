@@ -22,6 +22,8 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { OAuthDto } from './dto/oauth.dto';
 import { User } from '../users/user.entity';
 import { StorageService } from '../storage/storage.service';
 
@@ -49,6 +51,20 @@ export class AuthController {
         return await this.authService.login(loginDto);
     }
 
+    @Post('oauth')
+    @ApiOperation({ summary: 'OAuth login/register' })
+    @ApiResponse({
+        status: 200,
+        description: 'OAuth user logged in successfully',
+    })
+    @ApiResponse({
+        status: 201,
+        description: 'OAuth user registered successfully',
+    })
+    async oauth(@Body() oauthDto: OAuthDto) {
+        return await this.authService.oauthLogin(oauthDto);
+    }
+
     @UseGuards(AuthGuard('jwt'))
     @Get('profile')
     @ApiBearerAuth()
@@ -57,7 +73,10 @@ export class AuthController {
     @ApiResponse({ status: 401, description: 'Unauthorized' })
     getProfile(@Request() req: { user: User }) {
         const { password: _, ...userWithoutPassword } = req.user;
-        return userWithoutPassword;
+        return {
+            ...userWithoutPassword,
+            hasPassword: req.user.password !== null,
+        };
     }
 
     @UseGuards(AuthGuard('jwt'))
@@ -75,7 +94,10 @@ export class AuthController {
             updateProfileDto,
         );
         const { password: _, ...userWithoutPassword } = updatedUser;
-        return userWithoutPassword;
+        return {
+            ...userWithoutPassword,
+            hasPassword: updatedUser.password !== null,
+        };
     }
 
     @UseGuards(AuthGuard('jwt'))
@@ -116,6 +138,26 @@ export class AuthController {
         });
 
         const { password: _, ...userWithoutPassword } = updatedUser;
-        return userWithoutPassword;
+        return {
+            ...userWithoutPassword,
+            hasPassword: updatedUser.password !== null,
+        };
+    }
+
+    @UseGuards(AuthGuard('jwt'))
+    @Put('change-password')
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Change user password' })
+    @ApiResponse({ status: 200, description: 'Password changed successfully' })
+    @ApiResponse({
+        status: 401,
+        description: 'Unauthorized or incorrect current password',
+    })
+    async changePassword(
+        @Request() req: { user: User },
+        @Body() changePasswordDto: ChangePasswordDto,
+    ) {
+        await this.authService.changePassword(req.user.id, changePasswordDto);
+        return { message: 'Password changed successfully' };
     }
 }

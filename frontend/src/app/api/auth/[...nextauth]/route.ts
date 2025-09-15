@@ -1,9 +1,19 @@
 import NextAuth from 'next-auth';
 import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import GitHubProvider from 'next-auth/providers/github';
+import GoogleProvider from 'next-auth/providers/google';
 
 const authOptions: NextAuthOptions = {
     providers: [
+        GitHubProvider({
+            clientId: process.env.GITHUB_ID!,
+            clientSecret: process.env.GITHUB_SECRET!,
+        }),
+        GoogleProvider({
+            clientId: process.env.GOOGLE_CLIENT_ID!,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        }),
         CredentialsProvider({
             name: 'credentials',
             credentials: {
@@ -17,7 +27,7 @@ const authOptions: NextAuthOptions = {
 
                 try {
                     const response = await fetch(
-                        'http://localhost:3001/auth/login',
+                        `${process.env.NEXT_PUBLIC_API_URL}/auth/login`,
                         {
                             method: 'POST',
                             headers: {
@@ -39,8 +49,11 @@ const authOptions: NextAuthOptions = {
                     return {
                         id: data.user.id,
                         email: data.user.email,
+                        username: data.user.username,
                         name: data.user.username,
                         image: data.user.avatar_url,
+                        avatar_url: data.user.avatar_url,
+                        hasPassword: data.user.password !== null,
                         accessToken: data.access_token,
                     };
                 } catch (error) {
@@ -51,6 +64,53 @@ const authOptions: NextAuthOptions = {
         }),
     ],
     callbacks: {
+        async signIn({ user, account }) {
+            // OAuth 로그인의 경우 백엔드에 사용자 생성/조회
+            if (
+                account?.provider === 'github' ||
+                account?.provider === 'google'
+            ) {
+                try {
+                    const response = await fetch(
+                        `${process.env.NEXT_PUBLIC_API_URL}/auth/oauth`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                provider: account.provider,
+                                providerId: user.id,
+                                email: user.email,
+                                username:
+                                    user.name || user.email?.split('@')[0],
+                                avatar_url: user.image,
+                            }),
+                        },
+                    );
+
+                    if (!response.ok) {
+                        console.error('Failed to create/find OAuth user');
+                        return false;
+                    }
+
+                    const data = await response.json();
+                    // 백엔드에서 받은 사용자 정보로 user 객체 업데이트
+                    user.id = data.user.id;
+                    user.email = data.user.email;
+                    user.username = data.user.username;
+                    user.name = data.user.username;
+                    user.image = data.user.avatar_url;
+                    user.avatar_url = data.user.avatar_url;
+                    user.hasPassword = data.user.password !== null;
+                    user.accessToken = data.access_token;
+                } catch (error) {
+                    console.error('OAuth signIn error:', error);
+                    return false;
+                }
+            }
+            return true;
+        },
         async jwt({ token, user }) {
             if (user) {
                 token.accessToken = user.accessToken;
