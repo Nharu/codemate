@@ -45,6 +45,8 @@ interface FileTreeNodeProps {
     onFileDelete?: (file: FileNode) => void;
     onFileView?: (file: FileNode) => void;
     onFolderDelete?: (folder: FileNode) => void;
+    expandedFolders?: Set<string>;
+    onToggleFolder?: (path: string) => void;
     compactMode?: boolean;
 }
 
@@ -58,6 +60,8 @@ function FileTreeNode({
     onFileDelete,
     onFileView,
     onFolderDelete,
+    expandedFolders,
+    onToggleFolder,
     compactMode = false,
 }: FileTreeNodeProps) {
     const formatFileSize = (bytes: number | undefined) => {
@@ -196,6 +200,8 @@ function FileTreeNode({
                             onFileDelete={onFileDelete}
                             onFileView={onFileView}
                             onFolderDelete={onFolderDelete}
+                            expandedFolders={expandedFolders}
+                            onToggleFolder={onToggleFolder}
                             compactMode={compactMode}
                         />
                     </div>
@@ -204,10 +210,8 @@ function FileTreeNode({
     );
 }
 
-interface FileTreeInternalProps
-    extends Omit<FileTreeProps, 'expandedFolders' | 'onToggleFolder'> {
+interface FileTreeInternalProps extends FileTreeProps {
     level?: number;
-    compactMode?: boolean;
 }
 
 function FileTree({
@@ -218,23 +222,28 @@ function FileTree({
     onFileDelete,
     onFileView,
     onFolderDelete,
+    expandedFolders,
+    onToggleFolder,
     compactMode = false,
 }: FileTreeInternalProps) {
-    const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
-        new Set(),
-    );
+    const [internalExpandedFolders, setInternalExpandedFolders] = useState<
+        Set<string>
+    >(new Set());
 
-    const toggleFolder = (path: string) => {
-        setExpandedFolders((prev) => {
-            const next = new Set(prev);
-            if (next.has(path)) {
-                next.delete(path);
-            } else {
-                next.add(path);
-            }
-            return next;
+    const currentExpandedFolders = expandedFolders || internalExpandedFolders;
+    const currentToggleFolder =
+        onToggleFolder ||
+        ((path: string) => {
+            setInternalExpandedFolders((prev) => {
+                const next = new Set(prev);
+                if (next.has(path)) {
+                    next.delete(path);
+                } else {
+                    next.add(path);
+                }
+                return next;
+            });
         });
-    };
 
     return (
         <div className="space-y-1">
@@ -243,13 +252,15 @@ function FileTree({
                     key={node.path}
                     node={node}
                     level={level}
-                    isExpanded={expandedFolders.has(node.path)}
-                    onToggle={() => toggleFolder(node.path)}
+                    isExpanded={currentExpandedFolders.has(node.path)}
+                    onToggle={() => currentToggleFolder(node.path)}
                     onFileClick={onFileClick}
                     onFileEdit={onFileEdit}
                     onFileDelete={onFileDelete}
                     onFileView={onFileView}
                     onFolderDelete={onFolderDelete}
+                    expandedFolders={currentExpandedFolders}
+                    onToggleFolder={currentToggleFolder}
                     compactMode={compactMode}
                 />
             ))}
@@ -305,6 +316,8 @@ export default function FileTreeComponent({
                     onFileDelete={onFileDelete}
                     onFileView={onFileView}
                     onFolderDelete={onFolderDelete}
+                    expandedFolders={currentExpandedFolders}
+                    onToggleFolder={currentToggleFolder}
                     compactMode={compactMode}
                 />
             ))}

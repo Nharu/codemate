@@ -46,7 +46,7 @@ export class IdeSessionGateway
         try {
             const token = client.handshake.auth.token as string;
             if (!token) {
-                this.logger.warn('No token provided in auth');
+                client.emit('auth:error', { message: 'No token provided' });
                 client.disconnect();
                 return;
             }
@@ -56,7 +56,7 @@ export class IdeSessionGateway
             const user = await this.usersService.findById(payload.sub);
 
             if (!user) {
-                this.logger.warn(`User not found: ${payload.sub}`);
+                client.emit('auth:error', { message: 'User not found' });
                 client.disconnect();
                 return;
             }
@@ -65,8 +65,20 @@ export class IdeSessionGateway
             this.logger.log(
                 `IDE session client connected: ${user.username} (${client.userId})`,
             );
+
+            // Notify client that authentication is complete
+            client.emit('auth:success', {
+                userId: client.userId,
+                username: user.username,
+            });
         } catch (error) {
             this.logger.error('Authentication failed:', error);
+            client.emit('auth:error', {
+                message:
+                    error instanceof Error
+                        ? error.message
+                        : 'Authentication failed',
+            });
             client.disconnect();
         }
     }

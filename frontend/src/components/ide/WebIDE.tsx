@@ -53,6 +53,9 @@ export default function WebIDE({
     const [isResizing, setIsResizing] = useState(false);
     const [isNewFileModalOpen, setIsNewFileModalOpen] = useState(false);
     const [isSessionLoaded, setIsSessionLoaded] = useState(false);
+    const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
+        new Set(),
+    );
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
     // IDE Session socket
@@ -97,6 +100,70 @@ export default function WebIDE({
         return languageMap[ext || ''] || 'plaintext';
     }, []);
 
+    // Function to get display name for tabs (handles duplicate file names)
+    // Function to expand folders for a given file path
+    const expandFoldersForPath = useCallback((filePath: string) => {
+        const pathParts = filePath.split('/').filter((part) => part !== '');
+        const foldersToExpand = new Set<string>();
+
+        // Build all parent folder paths
+        for (let i = 0; i < pathParts.length - 1; i++) {
+            const folderPath = pathParts.slice(0, i + 1).join('/');
+            foldersToExpand.add(folderPath);
+        }
+
+        setExpandedFolders((prev) => new Set([...prev, ...foldersToExpand]));
+    }, []);
+
+    const getTabDisplayName = useCallback(
+        (currentTab: OpenTab): string => {
+            const tabsWithSameName = openTabs.filter(
+                (tab) => tab.name === currentTab.name,
+            );
+
+            if (tabsWithSameName.length <= 1) {
+                return currentTab.name;
+            }
+
+            // Find the minimum unique path suffix needed to distinguish files
+            const currentPathParts = currentTab.path
+                .split('/')
+                .filter((part) => part !== '');
+            const fileName = currentPathParts[currentPathParts.length - 1];
+
+            // Check each level of parent directories until we find a unique combination
+            for (let depth = 1; depth < currentPathParts.length; depth++) {
+                const suffixParts = currentPathParts.slice(-depth - 1, -1);
+                const candidateDisplay = `${fileName} (${suffixParts.join('/')})`;
+
+                // Check if this display name would be unique
+                const conflictingTabs = tabsWithSameName.filter((tab) => {
+                    if (tab.id === currentTab.id) return false;
+
+                    const otherPathParts = tab.path
+                        .split('/')
+                        .filter((part) => part !== '');
+                    const otherSuffixParts = otherPathParts.slice(
+                        -depth - 1,
+                        -1,
+                    );
+                    const otherCandidateDisplay = `${fileName} (${otherSuffixParts.join('/')})`;
+
+                    return candidateDisplay === otherCandidateDisplay;
+                });
+
+                if (conflictingTabs.length === 0) {
+                    return candidateDisplay;
+                }
+            }
+
+            // If still not unique, show the full path (fallback)
+            const fullPath = currentPathParts.slice(0, -1).join('/');
+            return fullPath ? `${fileName} (${fullPath})` : fileName;
+        },
+        [openTabs],
+    );
+
     const openFile = (file: FileNode) => {
         const existingTab = openTabs.find((tab) => tab.id === file.id);
         if (existingTab) {
@@ -106,6 +173,9 @@ export default function WebIDE({
 
         const projectFile = files.find((f) => f.id === file.id);
         if (!projectFile) return;
+
+        // Expand folders for the opened file path
+        expandFoldersForPath(file.path);
 
         const newTab: OpenTab = {
             id: file.id,
@@ -327,11 +397,19 @@ export default function WebIDE({
 
                 setOpenTabs(validTabs);
 
+                // Expand folders for all restored tabs
+                validTabs.forEach((tab) => {
+                    expandFoldersForPath(tab.path);
+                });
+
                 // Restore active tab if it exists in valid tabs
                 const activeTab = validTabs.find(
                     (tab) => tab.id === sessionData.activeTabId,
                 );
                 setActiveTabId(activeTab ? sessionData.activeTabId : null);
+            } else {
+                // No session data - start with all folders collapsed
+                setExpandedFolders(new Set());
             }
             // Mark session as loaded regardless of whether data exists or not
             setIsSessionLoaded(true);
@@ -342,6 +420,7 @@ export default function WebIDE({
         isSessionLoading,
         files,
         getLanguageFromPath,
+        expandFoldersForPath,
     ]);
 
     // Auto-save session state via WebSocket
@@ -459,6 +538,18 @@ export default function WebIDE({
                                                 );
                                             }
                                         }}
+                                        expandedFolders={expandedFolders}
+                                        onToggleFolder={(path) => {
+                                            setExpandedFolders((prev) => {
+                                                const newSet = new Set(prev);
+                                                if (newSet.has(path)) {
+                                                    newSet.delete(path);
+                                                } else {
+                                                    newSet.add(path);
+                                                }
+                                                return newSet;
+                                            });
+                                        }}
                                         compactMode={sidebarWidth < 280}
                                     />
                                 </div>
@@ -510,16 +601,17 @@ export default function WebIDE({
                             <div
                                 key={tab.id}
                                 className={cn(
-                                    'flex items-center px-3 py-2 border-r cursor-pointer min-w-0',
+                                    'flex items-center px-3 py-2 border-r cursor-pointer min-w-[120px] max-w-[200px]',
                                     activeTabId === tab.id
                                         ? 'bg-white border-b-2 border-blue-500'
                                         : 'hover:bg-gray-50',
                                 )}
                                 onClick={() => setActiveTabId(tab.id)}
+                                title={tab.path} // Show full path on hover
                             >
                                 <File className="h-4 w-4 mr-2 flex-shrink-0" />
                                 <span className="text-sm truncate">
-                                    {tab.name}
+                                    {getTabDisplayName(tab)}
                                     {tab.isDirty && '*'}
                                 </span>
                                 <Button

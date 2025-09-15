@@ -39,7 +39,10 @@ export const useIdeSessionSocket = (
 
     // Initialize socket connection
     useEffect(() => {
-        if (!session?.accessToken || !projectId) return;
+        if (!session?.accessToken || !projectId) {
+            setIsLoading(false);
+            return;
+        }
 
         const socket = io(`${process.env.NEXT_PUBLIC_API_URL}/ide-session`, {
             auth: { token: session.accessToken },
@@ -49,13 +52,14 @@ export const useIdeSessionSocket = (
         socketRef.current = socket;
 
         const handleConnect = (): void => {
-            console.log('IDE session socket connected');
             setIsConnected(true);
+        };
+
+        const handleAuthSuccess = (): void => {
             socket.emit('session:get', { projectId });
         };
 
         const handleDisconnect = (): void => {
-            console.log('IDE session socket disconnected');
             setIsConnected(false);
         };
 
@@ -72,24 +76,12 @@ export const useIdeSessionSocket = (
             }
         };
 
-        const handleSessionSaved = ({
-            projectId: savedProjectId,
-        }: {
-            projectId: string;
-        }): void => {
-            if (savedProjectId === projectId) {
-                console.log('Session saved successfully');
-            }
+        const handleSessionSaved = (): void => {
+            // Session saved successfully
         };
 
-        const handleSessionExtended = ({
-            projectId: extendedProjectId,
-        }: {
-            projectId: string;
-        }): void => {
-            if (extendedProjectId === projectId) {
-                console.log('Session TTL extended');
-            }
+        const handleSessionExtended = (): void => {
+            // Session TTL extended
         };
 
         const handleSessionDeleted = ({
@@ -99,17 +91,22 @@ export const useIdeSessionSocket = (
         }): void => {
             if (deletedProjectId === projectId) {
                 setSessionData(null);
-                console.log('Session deleted');
             }
         };
 
-        const handleSessionError = ({ message }: { message: string }): void => {
-            console.error('IDE session error:', message);
+        const handleSessionError = (): void => {
             setIsLoading(false);
+        };
+
+        const handleAuthError = (): void => {
+            setIsLoading(false);
+            setIsConnected(false);
         };
 
         socket.on('connect', handleConnect);
         socket.on('disconnect', handleDisconnect);
+        socket.on('auth:success', handleAuthSuccess);
+        socket.on('auth:error', handleAuthError);
         socket.on('session:data', handleSessionData);
         socket.on('session:saved', handleSessionSaved);
         socket.on('session:extended', handleSessionExtended);
@@ -119,7 +116,7 @@ export const useIdeSessionSocket = (
         return (): void => {
             socket.disconnect();
         };
-    }, [session?.accessToken, projectId]);
+    }, [session?.accessToken, projectId, session?.expires]);
 
     const updateSession = useCallback(
         (newSession: IdeSessionState): void => {
