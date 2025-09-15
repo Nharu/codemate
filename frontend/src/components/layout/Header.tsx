@@ -16,53 +16,47 @@ export default function Header() {
     };
 
     return (
-        <header className="border-b bg-white shadow-sm">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <header className="border-b bg-white shadow-sm sticky top-0 z-50">
+            <div className="container mx-auto px-4">
                 <div className="flex justify-between items-center h-16">
                     {/* Logo */}
-                    <Link href="/" className="flex items-center space-x-2">
-                        <div className="bg-blue-600 text-white px-3 py-1 rounded-lg font-bold">
+                    <Link
+                        href="/dashboard"
+                        className="flex items-center space-x-2"
+                    >
+                        <div className="bg-blue-600 text-white px-3 py-1 rounded-lg font-bold text-lg">
                             CodeMate
                         </div>
                     </Link>
 
-                    {/* Navigation */}
-                    <nav className="hidden md:flex items-center space-x-8">
-                        <Link
-                            href="/features"
-                            className="text-gray-700 hover:text-blue-600 transition-colors"
-                        >
-                            기능
-                        </Link>
-                        <Link
-                            href="/pricing"
-                            className="text-gray-700 hover:text-blue-600 transition-colors"
-                        >
-                            요금
-                        </Link>
-                        <Link
-                            href="/docs"
-                            className="text-gray-700 hover:text-blue-600 transition-colors"
-                        >
-                            문서
-                        </Link>
-                    </nav>
+                    {/* Navigation - 로그인 시에만 표시 */}
+                    {session && (
+                        <nav className="hidden md:flex items-center space-x-6">
+                            <Link
+                                href="/dashboard/projects"
+                                className="text-gray-700 hover:text-blue-600 transition-colors font-medium"
+                            >
+                                프로젝트
+                            </Link>
+                            <Link
+                                href="/collaborate"
+                                className="text-gray-700 hover:text-blue-600 transition-colors font-medium"
+                            >
+                                협업
+                            </Link>
+                        </nav>
+                    )}
 
                     {/* Auth Section */}
-                    <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-3">
                         {status === 'loading' ? (
                             <div className="animate-pulse">
                                 <div className="h-10 w-20 bg-gray-200 rounded"></div>
                             </div>
                         ) : session ? (
                             <div className="flex items-center space-x-3">
-                                <Link href="/dashboard">
-                                    <Button variant="ghost" size="sm">
-                                        대시보드
-                                    </Button>
-                                </Link>
+                                {/* Profile Section */}
                                 <div className="flex items-center space-x-2">
-                                    {/* Profile Image or User Icon */}
                                     <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-300 bg-gray-100 flex items-center justify-center">
                                         {profile?.avatar_url ? (
                                             <Image
@@ -79,26 +73,29 @@ export default function Header() {
                                             />
                                         )}
                                     </div>
-                                    <span className="text-sm font-medium">
+                                    <span className="text-sm font-medium text-gray-700 hidden sm:block">
                                         {profile?.username ||
                                             session.user?.name}
                                     </span>
                                 </div>
 
-                                {/* Settings Button */}
+                                {/* Action Buttons */}
                                 <Link href="/dashboard/settings">
-                                    <Button variant="ghost" size="sm">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="p-2"
+                                    >
                                         <Settings size={16} />
                                     </Button>
                                 </Link>
                                 <Button
-                                    variant="outline"
+                                    variant="ghost"
                                     size="sm"
                                     onClick={handleSignOut}
-                                    className="flex items-center space-x-1"
+                                    className="p-2"
                                 >
                                     <LogOut size={16} />
-                                    <span>로그아웃</span>
                                 </Button>
                             </div>
                         ) : (

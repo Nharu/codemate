@@ -24,8 +24,8 @@ import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { OAuthDto } from './dto/oauth.dto';
-import { User } from '../users/user.entity';
 import { StorageService } from '../storage/storage.service';
+import type { AuthenticatedRequest } from '../../common/types/authenticated-request.interface';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -71,7 +71,7 @@ export class AuthController {
     @ApiOperation({ summary: 'Get current user profile' })
     @ApiResponse({ status: 200, description: 'User profile retrieved' })
     @ApiResponse({ status: 401, description: 'Unauthorized' })
-    getProfile(@Request() req: { user: User }) {
+    getProfile(@Request() req: AuthenticatedRequest) {
         const { password: _, ...userWithoutPassword } = req.user;
         return {
             ...userWithoutPassword,
@@ -86,7 +86,7 @@ export class AuthController {
     @ApiResponse({ status: 200, description: 'Profile updated successfully' })
     @ApiResponse({ status: 401, description: 'Unauthorized' })
     async updateProfile(
-        @Request() req: { user: User },
+        @Request() req: AuthenticatedRequest,
         @Body() updateProfileDto: UpdateProfileDto,
     ) {
         const updatedUser = await this.authService.updateProfile(
@@ -109,7 +109,7 @@ export class AuthController {
     @ApiResponse({ status: 400, description: 'Invalid file' })
     @ApiResponse({ status: 401, description: 'Unauthorized' })
     async uploadAvatar(
-        @Request() req: { user: User },
+        @Request() req: AuthenticatedRequest,
         @UploadedFile() file: Express.Multer.File,
     ) {
         if (!file) {
@@ -154,7 +154,7 @@ export class AuthController {
         description: 'Unauthorized or incorrect current password',
     })
     async changePassword(
-        @Request() req: { user: User },
+        @Request() req: AuthenticatedRequest,
         @Body() changePasswordDto: ChangePasswordDto,
     ) {
         await this.authService.changePassword(req.user.id, changePasswordDto);

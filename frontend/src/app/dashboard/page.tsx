@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import Image from 'next/image';
 import { useProfile } from '@/hooks/useProfile';
+import { useProjects } from '@/hooks/useProjects';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -14,7 +15,18 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, User, Calendar, Mail, Settings, Plus } from 'lucide-react';
+import {
+    Loader2,
+    User,
+    Calendar,
+    Mail,
+    Settings,
+    Plus,
+    Folder,
+    Eye,
+    Lock,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import Header from '@/components/layout/Header';
 
@@ -22,6 +34,7 @@ export default function DashboardPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
     const { data: profile, isLoading, error } = useProfile();
+    const { data: projects } = useProjects();
 
     useEffect(() => {
         if (status === 'unauthenticated') {
@@ -137,7 +150,10 @@ export default function DashboardPage() {
 
                 {/* Quick Actions */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                    <Card
+                        className="cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => router.push('/dashboard/projects')}
+                    >
                         <CardHeader>
                             <CardTitle className="flex items-center">
                                 <Plus className="h-5 w-5 mr-2" />새 프로젝트
@@ -151,17 +167,25 @@ export default function DashboardPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                    <Card
+                        className="cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => router.push('/dashboard/projects')}
+                    >
                         <CardHeader>
-                            <CardTitle>최근 프로젝트</CardTitle>
+                            <CardTitle>프로젝트 관리</CardTitle>
                             <CardDescription>
-                                최근에 작업한 프로젝트들
+                                내 프로젝트를 관리하고 협업하세요
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-sm text-gray-500">
-                                아직 프로젝트가 없습니다
-                            </p>
+                            <div className="flex items-center justify-between">
+                                <span className="text-2xl font-bold">
+                                    {projects?.length || 0}
+                                </span>
+                                <span className="text-sm text-gray-500">
+                                    개의 프로젝트
+                                </span>
+                            </div>
                         </CardContent>
                     </Card>
 
@@ -173,12 +197,91 @@ export default function DashboardPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Button variant="outline" className="w-full">
-                                리뷰 시작
+                            <Button
+                                variant="outline"
+                                className="w-full"
+                                disabled
+                            >
+                                곧 출시 예정
                             </Button>
                         </CardContent>
                     </Card>
                 </div>
+
+                {/* Recent Projects */}
+                {projects && projects.length > 0 && (
+                    <Card>
+                        <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <CardTitle className="flex items-center">
+                                    <Folder className="h-5 w-5 mr-2" />
+                                    최근 프로젝트
+                                </CardTitle>
+                                <Link href="/dashboard/projects">
+                                    <Button variant="outline" size="sm">
+                                        모든 프로젝트 보기
+                                    </Button>
+                                </Link>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3">
+                                {projects.slice(0, 3).map((project) => (
+                                    <div
+                                        key={project.id}
+                                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
+                                        onClick={() =>
+                                            router.push(
+                                                `/dashboard/projects/${project.id}`,
+                                            )
+                                        }
+                                    >
+                                        <div className="flex items-center space-x-3">
+                                            <Folder className="h-5 w-5 text-blue-500" />
+                                            <div>
+                                                <h4 className="font-medium">
+                                                    {project.name}
+                                                </h4>
+                                                <p className="text-sm text-gray-500 truncate max-w-[300px]">
+                                                    {project.description ||
+                                                        '설명이 없습니다.'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <Badge
+                                                variant={
+                                                    project.visibility ===
+                                                    'public'
+                                                        ? 'default'
+                                                        : 'secondary'
+                                                }
+                                            >
+                                                {project.visibility ===
+                                                'public' ? (
+                                                    <>
+                                                        <Eye className="mr-1 h-3 w-3" />
+                                                        공개
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Lock className="mr-1 h-3 w-3" />
+                                                        비공개
+                                                    </>
+                                                )}
+                                            </Badge>
+                                            <span className="text-xs text-gray-500">
+                                                {new Date(
+                                                    project.updated_at,
+                                                ).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
             </div>
         </div>
     );

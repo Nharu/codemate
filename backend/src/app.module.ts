@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { AiModule } from './modules/ai/ai.module';
 import { CollaborationModule } from './modules/collaboration/collaboration.module';
+import { ProjectsModule } from './modules/projects/projects.module';
 
 @Module({
     imports: [
@@ -17,6 +18,7 @@ import { CollaborationModule } from './modules/collaboration/collaboration.modul
         DatabaseModule,
         AuthModule,
         UsersModule,
+        ProjectsModule,
         AiModule,
         CollaborationModule,
     ],
