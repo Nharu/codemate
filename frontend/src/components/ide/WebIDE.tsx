@@ -12,6 +12,8 @@ import FileTreeComponent from '@/components/ui/file-tree';
 import { buildFileTree, type FileNode } from '@/lib/file-tree';
 import { cn } from '@/lib/utils';
 import { NewFileModal } from '@/components/ui/new-file-modal';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { AlertModal } from '@/components/ui/alert-modal';
 import { useIdeSessionSocket } from '@/hooks/useIdeSessionSocket';
 import type { editor } from 'monaco-editor';
 
@@ -52,6 +54,13 @@ export default function WebIDE({
     const [sidebarWidth, setSidebarWidth] = useState(320);
     const [isResizing, setIsResizing] = useState(false);
     const [isNewFileModalOpen, setIsNewFileModalOpen] = useState(false);
+    const [newFileInitialPath, setNewFileInitialPath] = useState('');
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [confirmAction, setConfirmAction] = useState<(() => void) | null>(
+        null,
+    );
+    const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
+    const [alertMessage, setAlertMessage] = useState('');
     const [isSessionLoaded, setIsSessionLoaded] = useState(false);
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
         new Set(),
@@ -193,12 +202,14 @@ export default function WebIDE({
     const closeTab = (tabId: string) => {
         const tab = openTabs.find((t) => t.id === tabId);
         if (tab?.isDirty) {
-            const confirmed = window.confirm(
-                '저장하지 않은 변경사항이 있습니다. 정말 닫으시겠습니까?',
-            );
-            if (!confirmed) return;
+            setConfirmAction(() => () => performCloseTab(tabId));
+            setIsConfirmModalOpen(true);
+            return;
         }
+        performCloseTab(tabId);
+    };
 
+    const performCloseTab = (tabId: string) => {
         setOpenTabs((prev) => prev.filter((tab) => tab.id !== tabId));
 
         if (activeTabId === tabId) {
@@ -261,6 +272,52 @@ export default function WebIDE({
                 }
             } catch (error) {
                 console.error('파일 저장 실패:', error);
+
+                // 에러 메시지 파싱 및 사용자 친화적 메시지 표시
+                let errorMessage = '파일 저장에 실패했습니다.';
+
+                if (error instanceof Error) {
+                    // HTTP 409 Conflict 또는 파일 중복 관련 에러
+                    if (
+                        error.message.includes('already exists') ||
+                        error.message.includes('Conflict') ||
+                        error.message.includes('409') ||
+                        error.message.includes('이미 존재')
+                    ) {
+                        errorMessage = `이미 "${tab.path}" 파일이 존재합니다. 다른 파일명을 사용해주세요.`;
+                    }
+                    // HTTP 400 Bad Request 또는 유효성 검증 에러
+                    else if (
+                        error.message.includes(
+                            'File path contains invalid characters',
+                        ) ||
+                        error.message.includes('특수문자') ||
+                        error.message.includes('400')
+                    ) {
+                        errorMessage =
+                            '파일 경로에 사용할 수 없는 문자가 포함되어 있습니다.';
+                    }
+                    // HTTP 403 Forbidden 또는 권한 에러
+                    else if (
+                        error.message.includes('permission') ||
+                        error.message.includes('권한') ||
+                        error.message.includes('403') ||
+                        error.message.includes('Forbidden')
+                    ) {
+                        errorMessage = '파일 저장 권한이 없습니다.';
+                    }
+                    // HTTP 413 Payload Too Large
+                    else if (
+                        error.message.includes('413') ||
+                        error.message.includes('too large') ||
+                        error.message.includes('파일이 너무')
+                    ) {
+                        errorMessage = '파일 크기가 너무 큽니다.';
+                    }
+                }
+
+                setAlertMessage(errorMessage);
+                setIsAlertModalOpen(true);
                 throw error;
             }
         },
@@ -283,14 +340,35 @@ export default function WebIDE({
     );
 
     const createNewFile = () => {
+        setNewFileInitialPath('');
         setIsNewFileModalOpen(true);
     };
 
-    const handleCreateNewFile = (fileName: string, language?: string) => {
+    const createNewFileInFolder = (folderPath: string) => {
+        setNewFileInitialPath(folderPath + '/');
+        setIsNewFileModalOpen(true);
+    };
+
+    const handleCreateNewFile = (filePath: string, language?: string) => {
+        // 중복 파일 경로 체크
+        const existingFile = files.find((file) => file.path === filePath);
+        const existingTab = openTabs.find((tab) => tab.path === filePath);
+
+        if (existingFile || existingTab) {
+            setAlertMessage(
+                `이미 "${filePath}" 파일이 존재합니다. 다른 파일명을 사용해주세요.`,
+            );
+            setIsAlertModalOpen(true);
+            return;
+        }
+
+        // 파일 경로에서 파일명 추출
+        const fileName = filePath.split('/').pop() || filePath;
+
         const newTab: OpenTab = {
             id: `new-${Date.now()}`,
             name: fileName,
-            path: fileName,
+            path: filePath,
             content: '',
             language: language || getLanguageFromPath(fileName),
             isDirty: true,
@@ -538,6 +616,9 @@ export default function WebIDE({
                                                 );
                                             }
                                         }}
+                                        onNewFileInFolder={
+                                            createNewFileInFolder
+                                        }
                                         expandedFolders={expandedFolders}
                                         onToggleFolder={(path) => {
                                             setExpandedFolders((prev) => {
@@ -699,9 +780,41 @@ export default function WebIDE({
 
             {/* New File Modal */}
             <NewFileModal
+                key={`${newFileInitialPath}-${files.length}-${openTabs.length}`}
                 open={isNewFileModalOpen}
                 onOpenChange={setIsNewFileModalOpen}
                 onConfirm={handleCreateNewFile}
+                initialPath={newFileInitialPath}
+                existingPaths={[
+                    ...files.map((file) => file.path),
+                    ...openTabs.map((tab) => tab.path),
+                ]}
+            />
+
+            {/* Confirm Modal */}
+            <ConfirmModal
+                open={isConfirmModalOpen}
+                onOpenChange={setIsConfirmModalOpen}
+                onConfirm={() => {
+                    if (confirmAction) {
+                        confirmAction();
+                        setConfirmAction(null);
+                    }
+                }}
+                title="변경사항 손실 경고"
+                description="저장하지 않은 변경사항이 있습니다. 정말 닫으시겠습니까?"
+                confirmText="닫기"
+                cancelText="취소"
+                variant="destructive"
+            />
+
+            {/* Alert Modal */}
+            <AlertModal
+                open={isAlertModalOpen}
+                onOpenChange={setIsAlertModalOpen}
+                title="파일 저장 오류"
+                description={alertMessage}
+                confirmText="확인"
             />
         </div>
     );

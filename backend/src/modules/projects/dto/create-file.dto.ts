@@ -1,4 +1,4 @@
-import { IsString, IsOptional, MaxLength } from 'class-validator';
+import { IsString, IsOptional, MaxLength, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateFileDto {
@@ -9,6 +9,9 @@ export class CreateFileDto {
     })
     @IsString()
     @MaxLength(500)
+    @Matches(/^[^<>:"|?*]+$/, {
+        message: 'File path contains invalid characters',
+    })
     path: string;
 
     @ApiProperty({

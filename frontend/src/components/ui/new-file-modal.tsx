@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -29,24 +30,36 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 
-const newFileSchema = z.object({
-    fileName: z
-        .string()
-        .min(1, '파일 이름을 입력해주세요')
-        .max(100, '파일 이름은 100자 이하여야 합니다')
-        .regex(
-            /^[^<>:"/\\|?*\x00-\x1f]+$/,
-            '파일 이름에 특수문자를 사용할 수 없습니다',
-        ),
-    language: z.string().optional(),
-});
+const createNewFileSchema = (existingPaths: string[] = []) =>
+    z.object({
+        filePath: z
+            .string()
+            .min(1, '파일 경로를 입력해주세요')
+            .max(255, '파일 경로는 255자 이하여야 합니다')
+            .regex(
+                /^[^<>:"|?*\x00-\x1f]+$/,
+                '파일 경로에 사용할 수 없는 특수문자가 있습니다',
+            )
+            .refine((path) => {
+                // 파일명이 비어있으면 안됨
+                const fileName = path.split('/').pop();
+                return fileName && fileName.trim().length > 0;
+            }, '파일명을 입력해주세요')
+            .refine((path) => {
+                // 중복 경로 체크
+                return !existingPaths.includes(path);
+            }, '이미 존재하는 파일입니다. 다른 파일명을 사용해주세요.'),
+        language: z.string().optional(),
+    });
 
-type NewFileForm = z.infer<typeof newFileSchema>;
+type NewFileForm = z.infer<ReturnType<typeof createNewFileSchema>>;
 
 interface NewFileModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onConfirm: (fileName: string, language?: string) => void;
+    onConfirm: (filePath: string, language?: string) => void;
+    initialPath?: string; // 선택된 폴더 경로가 있으면 초기값으로 설정
+    existingPaths?: string[]; // 기존 파일 경로들
 }
 
 const languageOptions = [
@@ -76,20 +89,38 @@ export function NewFileModal({
     open,
     onOpenChange,
     onConfirm,
+    initialPath = '',
+    existingPaths = [],
 }: NewFileModalProps) {
+    const schema = useMemo(
+        () => createNewFileSchema(existingPaths),
+        [existingPaths],
+    );
+
     const form = useForm<NewFileForm>({
-        resolver: zodResolver(newFileSchema),
+        resolver: zodResolver(schema),
         defaultValues: {
-            fileName: '',
+            filePath: initialPath,
             language: 'auto',
         },
+        mode: 'onChange', // 값이 변경될 때마다 유효성 검사 수행
     });
+
+    // 모달이 열릴 때마다 폼 초기화
+    useEffect(() => {
+        if (open) {
+            form.reset({
+                filePath: initialPath,
+                language: 'auto',
+            });
+        }
+    }, [open, initialPath, form]);
 
     const handleSubmit = (data: NewFileForm) => {
         const language = data.language === 'auto' ? undefined : data.language;
-        onConfirm(data.fileName, language);
+        onConfirm(data.filePath, language);
         form.reset({
-            fileName: '',
+            filePath: '',
             language: 'auto',
         });
         onOpenChange(false);
@@ -98,7 +129,7 @@ export function NewFileModal({
     const handleOpenChange = (newOpen: boolean) => {
         if (!newOpen) {
             form.reset({
-                fileName: '',
+                filePath: '',
                 language: 'auto',
             });
         }
@@ -111,7 +142,8 @@ export function NewFileModal({
                 <DialogHeader>
                     <DialogTitle>새 파일 만들기</DialogTitle>
                     <DialogDescription>
-                        새로 만들 파일의 이름과 언어를 선택하세요.
+                        새로 만들 파일의 경로와 언어를 선택하세요. 폴더가 없으면
+                        자동으로 생성됩니다.
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -121,13 +153,13 @@ export function NewFileModal({
                     >
                         <FormField
                             control={form.control}
-                            name="fileName"
+                            name="filePath"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>파일 이름</FormLabel>
+                                    <FormLabel>파일 경로</FormLabel>
                                     <FormControl>
                                         <Input
-                                            placeholder="예: component.tsx, utils.js, README.md"
+                                            placeholder="예: src/components/Button.tsx, utils/helpers.js, docs/README.md"
                                             {...field}
                                             autoFocus
                                         />

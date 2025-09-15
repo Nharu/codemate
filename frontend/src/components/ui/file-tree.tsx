@@ -12,6 +12,7 @@ import {
     Trash2,
     Eye,
     Code2,
+    Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './button';
@@ -30,6 +31,7 @@ interface FileTreeProps {
     onFileDelete?: (file: FileNode) => void;
     onFileView?: (file: FileNode) => void;
     onFolderDelete?: (folder: FileNode) => void;
+    onNewFileInFolder?: (folderPath: string) => void;
     expandedFolders?: Set<string>;
     onToggleFolder?: (path: string) => void;
     compactMode?: boolean;
@@ -45,6 +47,7 @@ interface FileTreeNodeProps {
     onFileDelete?: (file: FileNode) => void;
     onFileView?: (file: FileNode) => void;
     onFolderDelete?: (folder: FileNode) => void;
+    onNewFileInFolder?: (folderPath: string) => void;
     expandedFolders?: Set<string>;
     onToggleFolder?: (path: string) => void;
     compactMode?: boolean;
@@ -60,6 +63,7 @@ function FileTreeNode({
     onFileDelete,
     onFileView,
     onFolderDelete,
+    onNewFileInFolder,
     expandedFolders,
     onToggleFolder,
     compactMode = false,
@@ -174,14 +178,28 @@ function FileTreeNode({
                                     )}
                                 </>
                             )}
-                            {node.type === 'folder' && onFolderDelete && (
-                                <DropdownMenuItem
-                                    onClick={() => onFolderDelete(node)}
-                                    className="text-red-600"
-                                >
-                                    <Trash2 className="mr-2 h-4 w-4 flex-shrink-0" />
-                                    폴더 삭제
-                                </DropdownMenuItem>
+                            {node.type === 'folder' && (
+                                <>
+                                    {onNewFileInFolder && (
+                                        <DropdownMenuItem
+                                            onClick={() =>
+                                                onNewFileInFolder(node.path)
+                                            }
+                                        >
+                                            <Plus className="mr-2 h-4 w-4 flex-shrink-0" />
+                                            새 파일 만들기
+                                        </DropdownMenuItem>
+                                    )}
+                                    {onFolderDelete && (
+                                        <DropdownMenuItem
+                                            onClick={() => onFolderDelete(node)}
+                                            className="text-red-600"
+                                        >
+                                            <Trash2 className="mr-2 h-4 w-4 flex-shrink-0" />
+                                            폴더 삭제
+                                        </DropdownMenuItem>
+                                    )}
+                                </>
                             )}
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -200,6 +218,7 @@ function FileTreeNode({
                             onFileDelete={onFileDelete}
                             onFileView={onFileView}
                             onFolderDelete={onFolderDelete}
+                            onNewFileInFolder={onNewFileInFolder}
                             expandedFolders={expandedFolders}
                             onToggleFolder={onToggleFolder}
                             compactMode={compactMode}
@@ -222,6 +241,7 @@ function FileTree({
     onFileDelete,
     onFileView,
     onFolderDelete,
+    onNewFileInFolder,
     expandedFolders,
     onToggleFolder,
     compactMode = false,
@@ -259,6 +279,7 @@ function FileTree({
                     onFileDelete={onFileDelete}
                     onFileView={onFileView}
                     onFolderDelete={onFolderDelete}
+                    onNewFileInFolder={onNewFileInFolder}
                     expandedFolders={currentExpandedFolders}
                     onToggleFolder={currentToggleFolder}
                     compactMode={compactMode}
@@ -275,6 +296,7 @@ export default function FileTreeComponent({
     onFileDelete,
     onFileView,
     onFolderDelete,
+    onNewFileInFolder,
     expandedFolders,
     onToggleFolder,
     compactMode = false,
@@ -316,6 +338,7 @@ export default function FileTreeComponent({
                     onFileDelete={onFileDelete}
                     onFileView={onFileView}
                     onFolderDelete={onFolderDelete}
+                    onNewFileInFolder={onNewFileInFolder}
                     expandedFolders={currentExpandedFolders}
                     onToggleFolder={currentToggleFolder}
                     compactMode={compactMode}
