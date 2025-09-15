@@ -19,6 +19,8 @@ import {
     useCreateProject,
     useDeleteProject,
 } from '@/hooks/useProjects';
+import { useModal } from '@/hooks/useModal';
+import { toast } from 'sonner';
 import { ProjectVisibility } from '@/types/project';
 import { Button } from '@/components/ui/button';
 import {
@@ -63,6 +65,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import Header from '@/components/layout/Header';
+import { AlertModal } from '@/components/ui/alert-modal';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 const projectSchema = z.object({
     name: z
@@ -78,6 +82,8 @@ type ProjectForm = z.infer<typeof projectSchema>;
 export default function ProjectsPage() {
     const router = useRouter();
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+    const { alertState, confirmState, showConfirm, closeAlert, closeConfirm } =
+        useModal();
     const { data: projects, isLoading, error } = useProjects();
     const createProjectMutation = useCreateProject();
     const deleteProjectMutation = useDeleteProject();
@@ -102,13 +108,22 @@ export default function ProjectsPage() {
     };
 
     const handleDeleteProject = async (projectId: string) => {
-        if (confirm('정말로 이 프로젝트를 삭제하시겠습니까?')) {
-            try {
-                await deleteProjectMutation.mutateAsync(projectId);
-            } catch (error) {
-                console.error('프로젝트 삭제 실패:', error);
-            }
-        }
+        showConfirm(
+            '정말로 이 프로젝트를 삭제하시겠습니까?',
+            async () => {
+                try {
+                    await deleteProjectMutation.mutateAsync(projectId);
+                } catch (error) {
+                    console.error('프로젝트 삭제 실패:', error);
+                    toast.error('프로젝트 삭제 중 오류가 발생했습니다.');
+                }
+            },
+            {
+                title: '프로젝트 삭제',
+                confirmText: '삭제',
+                variant: 'destructive',
+            },
+        );
     };
 
     if (error) {
@@ -388,6 +403,25 @@ export default function ProjectsPage() {
                         </Button>
                     </div>
                 )}
+
+                <AlertModal
+                    open={alertState.open}
+                    onOpenChange={closeAlert}
+                    title={alertState.title}
+                    description={alertState.description}
+                    confirmText={alertState.confirmText}
+                />
+
+                <ConfirmModal
+                    open={confirmState.open}
+                    onOpenChange={closeConfirm}
+                    onConfirm={confirmState.onConfirm || (() => {})}
+                    title={confirmState.title}
+                    description={confirmState.description}
+                    confirmText={confirmState.confirmText}
+                    cancelText={confirmState.cancelText}
+                    variant={confirmState.variant}
+                />
             </div>
         </div>
     );

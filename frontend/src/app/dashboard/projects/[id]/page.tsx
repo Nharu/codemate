@@ -1,34 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import {
-    ArrowLeft,
-    Plus,
-    File,
-    MoreVertical,
-    Edit3,
-    Trash2,
-    Code2,
-    Eye,
-    Lock,
-} from 'lucide-react';
+import { ArrowLeft, Plus, File, Edit3, Eye, Lock, Upload } from 'lucide-react';
 import { useProject } from '@/hooks/useProjects';
 import {
     useProjectFiles,
     useCreateFile,
     useDeleteFile,
+    useUploadZip,
+    useDeleteFolder,
 } from '@/hooks/useFiles';
+import { File as ProjectFile } from '@/types/project';
+import { useModal } from '@/hooks/useModal';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import { Card, CardHeader } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
@@ -55,15 +45,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import Header from '@/components/layout/Header';
+import FileTreeComponent from '@/components/ui/file-tree';
+import { buildFileTree, type FileNode } from '@/lib/file-tree';
+import { AlertModal } from '@/components/ui/alert-modal';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 const fileSchema = z.object({
     path: z
@@ -100,6 +88,10 @@ export default function ProjectDetailPage() {
     const router = useRouter();
     const projectId = params.id as string;
     const [isCreateFileDialogOpen, setIsCreateFileDialogOpen] = useState(false);
+    const [isZipUploading, setIsZipUploading] = useState(false);
+    const zipInputRef = useRef<HTMLInputElement>(null);
+    const { alertState, confirmState, showConfirm, closeAlert, closeConfirm } =
+        useModal();
 
     const {
         data: project,
@@ -113,6 +105,8 @@ export default function ProjectDetailPage() {
     } = useProjectFiles(projectId);
     const createFileMutation = useCreateFile();
     const deleteFileMutation = useDeleteFile();
+    const uploadZipMutation = useUploadZip();
+    const deleteFolderMutation = useDeleteFolder();
 
     const form = useForm<FileForm>({
         resolver: zodResolver(fileSchema),
@@ -134,21 +128,116 @@ export default function ProjectDetailPage() {
     };
 
     const handleDeleteFile = async (fileId: string) => {
-        if (confirm('정말로 이 파일을 삭제하시겠습니까?')) {
-            try {
-                await deleteFileMutation.mutateAsync({ projectId, fileId });
-            } catch (error) {
-                console.error('파일 삭제 실패:', error);
-            }
-        }
+        showConfirm(
+            '정말로 이 파일을 삭제하시겠습니까?',
+            async () => {
+                try {
+                    await deleteFileMutation.mutateAsync({ projectId, fileId });
+                } catch (error) {
+                    console.error('파일 삭제 실패:', error);
+                    toast.error('파일 삭제 중 오류가 발생했습니다.');
+                }
+            },
+            {
+                title: '파일 삭제',
+                confirmText: '삭제',
+                variant: 'destructive',
+            },
+        );
     };
 
-    const formatFileSize = (bytes: number) => {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    const handleFileClick = (file: FileNode) => {
+        router.push(`/dashboard/projects/${projectId}/files/${file.id}`);
+    };
+
+    const handleFileEdit = (file: FileNode) => {
+        router.push(`/dashboard/projects/${projectId}/files/${file.id}/edit`);
+    };
+
+    const handleFileView = (file: FileNode) => {
+        router.push(`/dashboard/projects/${projectId}/files/${file.id}`);
+    };
+
+    const handleFileDelete = (file: FileNode) => {
+        handleDeleteFile(file.id);
+    };
+
+    const handleFolderDelete = async (folder: FileNode) => {
+        const folderFilesCount = getAllFilesInFolder(
+            files || [],
+            folder.path,
+        ).length;
+
+        showConfirm(
+            `"${folder.name}" 폴더와 그 안에 있는 ${folderFilesCount}개의 파일을 모두 삭제하시겠습니까?`,
+            async () => {
+                try {
+                    await deleteFolderMutation.mutateAsync({
+                        projectId,
+                        folderPath: folder.path,
+                    });
+                    toast.success(
+                        `"${folder.name}" 폴더가 성공적으로 삭제되었습니다.`,
+                    );
+                } catch (error) {
+                    console.error('폴더 삭제 실패:', error);
+                    toast.error('폴더 삭제 중 오류가 발생했습니다.');
+                }
+            },
+            {
+                title: '폴더 삭제',
+                confirmText: '삭제',
+                variant: 'destructive',
+            },
+        );
+    };
+
+    const getAllFilesInFolder = (files: ProjectFile[], folderPath: string) => {
+        const normalizedFolderPath = folderPath.endsWith('/')
+            ? folderPath
+            : folderPath + '/';
+        return files.filter((file) =>
+            file.path.startsWith(normalizedFolderPath),
+        );
+    };
+
+    const handleZipButtonClick = () => {
+        zipInputRef.current?.click();
+    };
+
+    const handleZipUpload = async (
+        event: React.ChangeEvent<HTMLInputElement>,
+    ) => {
+        const uploadFile = event.target.files?.[0];
+        if (!uploadFile) return;
+
+        if (!uploadFile.name.toLowerCase().endsWith('.zip')) {
+            toast.error('ZIP 파일만 업로드할 수 있습니다.');
+            return;
+        }
+
+        if (uploadFile.size > 50 * 1024 * 1024) {
+            toast.error('파일 크기는 50MB를 초과할 수 없습니다.');
+            return;
+        }
+
+        setIsZipUploading(true);
+        try {
+            const result = await uploadZipMutation.mutateAsync({
+                projectId,
+                file: uploadFile,
+            });
+            toast.success(
+                `${result.length}개의 파일이 성공적으로 업로드되었습니다.`,
+            );
+        } catch (error) {
+            console.error('ZIP 업로드 실패:', error);
+            toast.error('ZIP 파일 업로드 중 오류가 발생했습니다.');
+        } finally {
+            setIsZipUploading(false);
+            // Reset input
+            event.target.value = '';
+        }
     };
 
     if (projectError || filesError) {
@@ -250,217 +339,191 @@ export default function ProjectDetailPage() {
                         </p>
                     </div>
 
-                    <Dialog
-                        open={isCreateFileDialogOpen}
-                        onOpenChange={setIsCreateFileDialogOpen}
-                    >
-                        <DialogTrigger asChild>
-                            <Button>
-                                <Plus className="mr-2 h-4 w-4" />새 파일
+                    <div className="flex space-x-2">
+                        {/* ZIP Upload Button */}
+                        <div>
+                            <input
+                                ref={zipInputRef}
+                                type="file"
+                                accept=".zip"
+                                onChange={handleZipUpload}
+                                className="hidden"
+                                disabled={isZipUploading}
+                            />
+                            <Button
+                                variant="outline"
+                                disabled={isZipUploading}
+                                onClick={handleZipButtonClick}
+                            >
+                                <Upload className="mr-2 h-4 w-4" />
+                                {isZipUploading
+                                    ? 'ZIP 업로드 중...'
+                                    : 'ZIP 업로드'}
                             </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[600px]">
-                            <DialogHeader>
-                                <DialogTitle>새 파일 만들기</DialogTitle>
-                                <DialogDescription>
-                                    프로젝트에 새로운 파일을 추가합니다.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <Form {...form}>
-                                <form
-                                    onSubmit={form.handleSubmit(onSubmit)}
-                                    className="space-y-4"
-                                >
-                                    <FormField
-                                        control={form.control}
-                                        name="path"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>파일 경로</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        placeholder="예: src/components/Button.tsx"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="language"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>
-                                                    프로그래밍 언어 (선택사항)
-                                                </FormLabel>
-                                                <Select
-                                                    onValueChange={
-                                                        field.onChange
-                                                    }
-                                                    value={field.value}
-                                                >
+                        </div>
+
+                        {/* Create File Dialog */}
+                        <Dialog
+                            open={isCreateFileDialogOpen}
+                            onOpenChange={setIsCreateFileDialogOpen}
+                        >
+                            <DialogTrigger asChild>
+                                <Button>
+                                    <Plus className="mr-2 h-4 w-4" />새 파일
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[600px]">
+                                <DialogHeader>
+                                    <DialogTitle>새 파일 만들기</DialogTitle>
+                                    <DialogDescription>
+                                        프로젝트에 새로운 파일을 추가합니다.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <Form {...form}>
+                                    <form
+                                        onSubmit={form.handleSubmit(onSubmit)}
+                                        className="space-y-4"
+                                    >
+                                        <FormField
+                                            control={form.control}
+                                            name="path"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>
+                                                        파일 경로
+                                                    </FormLabel>
                                                     <FormControl>
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="언어를 선택하세요" />
-                                                        </SelectTrigger>
+                                                        <Input
+                                                            placeholder="예: src/components/Button.tsx"
+                                                            {...field}
+                                                        />
                                                     </FormControl>
-                                                    <SelectContent>
-                                                        {languageOptions.map(
-                                                            (lang) => (
-                                                                <SelectItem
-                                                                    key={
-                                                                        lang.value
-                                                                    }
-                                                                    value={
-                                                                        lang.value
-                                                                    }
-                                                                >
-                                                                    {lang.label}
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="content"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>파일 내용</FormLabel>
-                                                <FormControl>
-                                                    <Textarea
-                                                        placeholder="파일 내용을 입력하세요"
-                                                        className="min-h-[200px] font-mono text-sm"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <DialogFooter>
-                                        <Button
-                                            type="submit"
-                                            disabled={
-                                                createFileMutation.isPending
-                                            }
-                                        >
-                                            {createFileMutation.isPending
-                                                ? '생성 중...'
-                                                : '파일 생성'}
-                                        </Button>
-                                    </DialogFooter>
-                                </form>
-                            </Form>
-                        </DialogContent>
-                    </Dialog>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="language"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>
+                                                        프로그래밍 언어
+                                                        (선택사항)
+                                                    </FormLabel>
+                                                    <Select
+                                                        onValueChange={
+                                                            field.onChange
+                                                        }
+                                                        value={field.value}
+                                                    >
+                                                        <FormControl>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="언어를 선택하세요" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            {languageOptions.map(
+                                                                (lang) => (
+                                                                    <SelectItem
+                                                                        key={
+                                                                            lang.value
+                                                                        }
+                                                                        value={
+                                                                            lang.value
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            lang.label
+                                                                        }
+                                                                    </SelectItem>
+                                                                ),
+                                                            )}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="content"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>
+                                                        파일 내용
+                                                    </FormLabel>
+                                                    <FormControl>
+                                                        <Textarea
+                                                            placeholder="파일 내용을 입력하세요"
+                                                            className="min-h-[200px] font-mono text-sm"
+                                                            {...field}
+                                                        />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <DialogFooter>
+                                            <Button
+                                                type="submit"
+                                                disabled={
+                                                    createFileMutation.isPending
+                                                }
+                                            >
+                                                {createFileMutation.isPending
+                                                    ? '생성 중...'
+                                                    : '파일 생성'}
+                                            </Button>
+                                        </DialogFooter>
+                                    </form>
+                                </Form>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
                 </div>
 
                 {isFilesLoading ? (
-                    <div className="space-y-4">
-                        {[...Array(3)].map((_, i) => (
-                            <Card key={i}>
-                                <CardHeader>
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex items-center space-x-3">
-                                            <Skeleton className="h-5 w-5" />
-                                            <Skeleton className="h-5 w-48" />
-                                        </div>
-                                        <Skeleton className="h-8 w-8" />
+                    <Card>
+                        <CardHeader>
+                            <div className="space-y-3">
+                                {[...Array(5)].map((_, i) => (
+                                    <div
+                                        key={i}
+                                        className="flex items-center space-x-3"
+                                    >
+                                        <Skeleton className="h-4 w-4" />
+                                        <Skeleton className="h-4 w-48" />
+                                        <Skeleton className="h-4 w-16" />
                                     </div>
-                                </CardHeader>
-                            </Card>
-                        ))}
-                    </div>
+                                ))}
+                            </div>
+                        </CardHeader>
+                    </Card>
                 ) : files && files.length > 0 ? (
-                    <div className="space-y-4">
-                        {files.map((file) => (
-                            <Card
-                                key={file.id}
-                                className="hover:shadow-md transition-shadow"
-                            >
-                                <CardHeader>
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex items-center space-x-3">
-                                            <File className="h-5 w-5 text-blue-500" />
-                                            <div>
-                                                <CardTitle className="text-base font-medium">
-                                                    {file.path}
-                                                </CardTitle>
-                                                <CardDescription className="flex items-center space-x-4 mt-1">
-                                                    {file.language && (
-                                                        <span className="flex items-center">
-                                                            <Code2 className="mr-1 h-3 w-3" />
-                                                            {file.language}
-                                                        </span>
-                                                    )}
-                                                    <span>
-                                                        {formatFileSize(
-                                                            file.size,
-                                                        )}
-                                                    </span>
-                                                    <span>
-                                                        {new Date(
-                                                            file.updated_at,
-                                                        ).toLocaleDateString()}
-                                                    </span>
-                                                </CardDescription>
-                                            </div>
-                                        </div>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button
-                                                    variant="ghost"
-                                                    className="h-8 w-8 p-0"
-                                                >
-                                                    <MoreVertical className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuItem
-                                                    onClick={() =>
-                                                        router.push(
-                                                            `/dashboard/projects/${projectId}/files/${file.id}`,
-                                                        )
-                                                    }
-                                                >
-                                                    <Eye className="mr-2 h-4 w-4" />
-                                                    보기
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={() =>
-                                                        router.push(
-                                                            `/dashboard/projects/${projectId}/files/${file.id}/edit`,
-                                                        )
-                                                    }
-                                                >
-                                                    <Edit3 className="mr-2 h-4 w-4" />
-                                                    편집
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={() =>
-                                                        handleDeleteFile(
-                                                            file.id,
-                                                        )
-                                                    }
-                                                    className="text-red-600"
-                                                >
-                                                    <Trash2 className="mr-2 h-4 w-4" />
-                                                    삭제
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </div>
-                                </CardHeader>
-                            </Card>
-                        ))}
-                    </div>
+                    <Card>
+                        <CardHeader>
+                            <FileTreeComponent
+                                tree={buildFileTree(
+                                    files.map((file) => ({
+                                        id: file.id,
+                                        path: file.path,
+                                        size:
+                                            typeof file.size === 'string'
+                                                ? parseInt(file.size, 10)
+                                                : file.size,
+                                        language: file.language,
+                                        updated_at: file.updated_at,
+                                    })),
+                                )}
+                                onFileClick={handleFileClick}
+                                onFileEdit={handleFileEdit}
+                                onFileView={handleFileView}
+                                onFileDelete={handleFileDelete}
+                                onFolderDelete={handleFolderDelete}
+                            />
+                        </CardHeader>
+                    </Card>
                 ) : (
                     <div className="text-center py-12">
                         <File className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
@@ -475,6 +538,25 @@ export default function ProjectDetailPage() {
                         </Button>
                     </div>
                 )}
+
+                <AlertModal
+                    open={alertState.open}
+                    onOpenChange={closeAlert}
+                    title={alertState.title}
+                    description={alertState.description}
+                    confirmText={alertState.confirmText}
+                />
+
+                <ConfirmModal
+                    open={confirmState.open}
+                    onOpenChange={closeConfirm}
+                    onConfirm={confirmState.onConfirm || (() => {})}
+                    title={confirmState.title}
+                    description={confirmState.description}
+                    confirmText={confirmState.confirmText}
+                    cancelText={confirmState.cancelText}
+                    variant={confirmState.variant}
+                />
             </div>
         </div>
     );

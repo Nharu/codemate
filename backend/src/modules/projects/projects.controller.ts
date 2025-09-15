@@ -9,7 +9,11 @@ import {
     UseGuards,
     Request,
     ParseUUIDPipe,
+    UseInterceptors,
+    UploadedFile,
+    BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
     ApiTags,
     ApiOperation,
@@ -180,5 +184,63 @@ export class ProjectsController {
         @Request() req: AuthenticatedRequest,
     ) {
         return this.projectsService.deleteFile(projectId, fileId, req.user.id);
+    }
+
+    @Delete(':id/folders/*')
+    @ApiOperation({ summary: 'Delete all files in a folder' })
+    @ApiParam({ name: 'id', description: 'Project ID', type: 'string' })
+    @ApiResponse({ status: 200, description: 'Folder deleted successfully' })
+    @ApiResponse({
+        status: 403,
+        description: 'Only project owner can delete folders',
+    })
+    @ApiResponse({ status: 404, description: 'Folder not found' })
+    async deleteFolder(
+        @Param('id', ParseUUIDPipe) projectId: string,
+        @Request() req: AuthenticatedRequest,
+    ) {
+        // Extract folder path from the remaining URL
+        const folderPath = req.url.split(`/projects/${projectId}/folders/`)[1];
+        const decodedFolderPath = decodeURIComponent(folderPath);
+
+        return await this.projectsService.deleteFolderFiles(
+            projectId,
+            decodedFolderPath,
+            req.user.id,
+        );
+    }
+
+    @Post(':id/upload-zip')
+    @UseInterceptors(FileInterceptor('file'))
+    @ApiOperation({ summary: 'Upload ZIP file to extract multiple files' })
+    @ApiParam({ name: 'id', description: 'Project ID', type: 'string' })
+    @ApiResponse({ status: 201, description: 'Files uploaded successfully' })
+    @ApiResponse({ status: 400, description: 'Invalid file or ZIP format' })
+    @ApiResponse({
+        status: 403,
+        description: 'Only project owner can upload files',
+    })
+    async uploadZip(
+        @Param('id', ParseUUIDPipe) projectId: string,
+        @UploadedFile() file: Express.Multer.File,
+        @Request() req: AuthenticatedRequest,
+    ) {
+        if (!file) {
+            throw new BadRequestException('No file provided');
+        }
+
+        if (!file.originalname.toLowerCase().endsWith('.zip')) {
+            throw new BadRequestException('Only ZIP files are allowed');
+        }
+
+        if (file.size > 50 * 1024 * 1024) {
+            throw new BadRequestException('ZIP file size cannot exceed 50MB');
+        }
+
+        return await this.projectsService.uploadZipFile(
+            projectId,
+            file.buffer,
+            req.user.id,
+        );
     }
 }

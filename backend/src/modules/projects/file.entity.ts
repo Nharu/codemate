@@ -30,7 +30,7 @@ export class File {
     @Column({ length: 50, nullable: true })
     language: string;
 
-    @Column({ type: 'bigint', default: 0 })
+    @Column({ type: 'integer', default: 0 })
     size: number;
 
     @CreateDateColumn({ type: 'timestamptz' })

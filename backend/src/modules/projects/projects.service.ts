@@ -12,6 +12,8 @@ import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { CreateFileDto } from './dto/create-file.dto';
 import { UpdateFileDto } from './dto/update-file.dto';
+import * as yauzl from 'yauzl';
+import * as path from 'path';
 
 @Injectable()
 export class ProjectsService {
@@ -193,5 +195,234 @@ export class ProjectsService {
 
         const file = await this.getFile(projectId, fileId, userId);
         await this.fileRepository.remove(file);
+    }
+
+    async deleteFolderFiles(
+        projectId: string,
+        folderPath: string,
+        userId: string,
+    ): Promise<void> {
+        const project = await this.findOne(projectId, userId);
+
+        if (project.owner_id !== userId) {
+            throw new ForbiddenException('Only project owner can delete files');
+        }
+
+        // Find all files that start with the folder path
+        const normalizedFolderPath = folderPath.endsWith('/')
+            ? folderPath
+            : folderPath + '/';
+
+        const filesToDelete = await this.fileRepository.find({
+            where: { project_id: projectId },
+        });
+
+        // Filter files that are in the folder (including subfolders)
+        const folderFiles = filesToDelete.filter((file) =>
+            file.path.startsWith(normalizedFolderPath),
+        );
+
+        if (folderFiles.length === 0) {
+            throw new NotFoundException(
+                'No files found in the specified folder',
+            );
+        }
+
+        // Delete all files in the folder
+        await this.fileRepository.remove(folderFiles);
+    }
+
+    async uploadZipFile(
+        projectId: string,
+        zipBuffer: Buffer,
+        userId: string,
+    ): Promise<File[]> {
+        const project = await this.findOne(projectId, userId);
+
+        if (project.owner_id !== userId) {
+            throw new ForbiddenException('Only project owner can upload files');
+        }
+
+        return new Promise((resolve, reject) => {
+            const createdFiles: File[] = [];
+
+            yauzl.fromBuffer(
+                zipBuffer,
+                { lazyEntries: true },
+                (err, zipfile) => {
+                    if (err) {
+                        reject(new ConflictException('Invalid ZIP file'));
+                        return;
+                    }
+
+                    if (!zipfile) {
+                        reject(
+                            new ConflictException('Could not read ZIP file'),
+                        );
+                        return;
+                    }
+
+                    const processNextEntry = () => {
+                        zipfile.readEntry();
+                    };
+
+                    zipfile.on('entry', (entry: yauzl.Entry) => {
+                        // Skip directories and hidden files
+                        if (
+                            entry.fileName.endsWith('/') ||
+                            entry.fileName.startsWith('.') ||
+                            entry.fileName.includes('/.') ||
+                            entry.fileName.includes('__MACOSX')
+                        ) {
+                            processNextEntry();
+                            return;
+                        }
+
+                        // Skip files that are too large (10MB limit)
+                        if (entry.uncompressedSize > 10 * 1024 * 1024) {
+                            processNextEntry();
+                            return;
+                        }
+
+                        zipfile.openReadStream(entry, (err, readStream) => {
+                            if (err) {
+                                reject(err);
+                                return;
+                            }
+
+                            if (!readStream) {
+                                processNextEntry();
+                                return;
+                            }
+
+                            const chunks: Buffer[] = [];
+                            readStream.on('data', (chunk: Buffer) =>
+                                chunks.push(chunk),
+                            );
+                            readStream.on('end', () => {
+                                void (async () => {
+                                    try {
+                                        const content =
+                                            Buffer.concat(chunks).toString(
+                                                'utf-8',
+                                            );
+                                        const filePath = entry.fileName.replace(
+                                            /\\/g,
+                                            '/',
+                                        ); // Normalize path separators
+
+                                        // Detect language from file extension
+                                        const ext = path
+                                            .extname(filePath)
+                                            .toLowerCase();
+                                        const languageMap: Record<
+                                            string,
+                                            string
+                                        > = {
+                                            '.js': 'javascript',
+                                            '.jsx': 'javascript',
+                                            '.ts': 'typescript',
+                                            '.tsx': 'typescript',
+                                            '.py': 'python',
+                                            '.java': 'java',
+                                            '.cpp': 'cpp',
+                                            '.c': 'c',
+                                            '.h': 'c',
+                                            '.go': 'go',
+                                            '.rs': 'rust',
+                                            '.php': 'php',
+                                            '.rb': 'ruby',
+                                            '.swift': 'swift',
+                                            '.kt': 'kotlin',
+                                            '.html': 'html',
+                                            '.css': 'css',
+                                            '.scss': 'scss',
+                                            '.json': 'json',
+                                            '.yaml': 'yaml',
+                                            '.yml': 'yaml',
+                                            '.md': 'markdown',
+                                            '.txt': 'text',
+                                            '.xml': 'xml',
+                                            '.sh': 'bash',
+                                        };
+
+                                        const language =
+                                            languageMap[ext] || undefined;
+
+                                        // Check if file already exists
+                                        const existingFile =
+                                            await this.fileRepository.findOne({
+                                                where: {
+                                                    project_id: projectId,
+                                                    path: filePath,
+                                                },
+                                            });
+
+                                        let file: File;
+                                        if (existingFile) {
+                                            // Update existing file
+                                            existingFile.content = content;
+                                            if (language)
+                                                existingFile.language =
+                                                    language;
+                                            existingFile.size =
+                                                Buffer.byteLength(
+                                                    content,
+                                                    'utf8',
+                                                );
+                                            file =
+                                                await this.fileRepository.save(
+                                                    existingFile,
+                                                );
+                                        } else {
+                                            // Create new file
+                                            file = this.fileRepository.create({
+                                                project_id: projectId,
+                                                path: filePath,
+                                                content,
+                                                ...(language && { language }),
+                                                size: Buffer.byteLength(
+                                                    content,
+                                                    'utf8',
+                                                ),
+                                            });
+                                            file =
+                                                await this.fileRepository.save(
+                                                    file,
+                                                );
+                                        }
+
+                                        createdFiles.push(file);
+                                        processNextEntry();
+                                    } catch (error) {
+                                        reject(
+                                            error instanceof Error
+                                                ? error
+                                                : new Error(String(error)),
+                                        );
+                                    }
+                                })();
+
+                                readStream.on('error', (err) => {
+                                    reject(err);
+                                });
+                            });
+                        });
+                    });
+
+                    zipfile.on('end', () => {
+                        resolve(createdFiles);
+                    });
+
+                    zipfile.on('error', (err) => {
+                        reject(
+                            err instanceof Error ? err : new Error(String(err)),
+                        );
+                    });
+
+                    processNextEntry();
+                },
+            );
+        });
     }
 }

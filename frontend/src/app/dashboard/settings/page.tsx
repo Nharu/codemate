@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Image from 'next/image';
+import { toast } from 'sonner';
 import {
     useProfile,
     useUpdateProfile,
@@ -98,13 +99,13 @@ export default function SettingsPage() {
         if (file) {
             // Validate file type
             if (!file.type.startsWith('image/')) {
-                alert('이미지 파일만 선택할 수 있습니다.');
+                toast.error('이미지 파일만 선택할 수 있습니다.');
                 return;
             }
 
             // Validate file size (5MB limit)
             if (file.size > 5 * 1024 * 1024) {
-                alert('파일 크기는 5MB 이하여야 합니다.');
+                toast.error('파일 크기는 5MB 이하여야 합니다.');
                 return;
             }
 
