@@ -32,6 +32,7 @@ interface FileTreeProps {
     onFolderDelete?: (folder: FileNode) => void;
     expandedFolders?: Set<string>;
     onToggleFolder?: (path: string) => void;
+    compactMode?: boolean;
 }
 
 interface FileTreeNodeProps {
@@ -44,6 +45,7 @@ interface FileTreeNodeProps {
     onFileDelete?: (file: FileNode) => void;
     onFileView?: (file: FileNode) => void;
     onFolderDelete?: (folder: FileNode) => void;
+    compactMode?: boolean;
 }
 
 function FileTreeNode({
@@ -56,6 +58,7 @@ function FileTreeNode({
     onFileDelete,
     onFileView,
     onFolderDelete,
+    compactMode = false,
 }: FileTreeNodeProps) {
     const formatFileSize = (bytes: number | undefined) => {
         if (bytes === undefined || bytes === null || isNaN(bytes))
@@ -91,30 +94,31 @@ function FileTreeNode({
                     {node.type === 'folder' ? (
                         <>
                             {isExpanded ? (
-                                <ChevronDown className="h-4 w-4 text-gray-500" />
+                                <ChevronDown className="h-4 w-4 text-gray-500 flex-shrink-0" />
                             ) : (
-                                <ChevronRight className="h-4 w-4 text-gray-500" />
+                                <ChevronRight className="h-4 w-4 text-gray-500 flex-shrink-0" />
                             )}
                             {isExpanded ? (
-                                <FolderOpen className="h-4 w-4 text-blue-500" />
+                                <FolderOpen className="h-4 w-4 text-blue-500 flex-shrink-0" />
                             ) : (
-                                <Folder className="h-4 w-4 text-blue-500" />
+                                <Folder className="h-4 w-4 text-blue-500 flex-shrink-0" />
                             )}
                         </>
                     ) : (
                         <>
-                            <div className="w-4" /> {/* Spacer for alignment */}
-                            <File className="h-4 w-4 text-gray-500" />
+                            <div className="w-4 flex-shrink-0" />{' '}
+                            {/* Spacer for alignment */}
+                            <File className="h-4 w-4 text-gray-500 flex-shrink-0" />
                         </>
                     )}
                     <span className="font-medium text-sm truncate">
                         {node.name}
                     </span>
-                    {node.type === 'file' && (
-                        <div className="flex items-center space-x-2 text-xs text-gray-500">
+                    {node.type === 'file' && !compactMode && (
+                        <div className="flex items-center space-x-2 text-xs text-gray-500 flex-shrink-0">
                             {node.language && (
                                 <span className="flex items-center">
-                                    <Code2 className="mr-1 h-3 w-3" />
+                                    <Code2 className="mr-1 h-3 w-3 flex-shrink-0" />
                                     {node.language}
                                 </span>
                             )}
@@ -130,10 +134,10 @@ function FileTreeNode({
                         <DropdownMenuTrigger asChild>
                             <Button
                                 variant="ghost"
-                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
+                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 flex-shrink-0"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                <MoreVertical className="h-3 w-3" />
+                                <MoreVertical className="h-3 w-3 flex-shrink-0" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -143,7 +147,7 @@ function FileTreeNode({
                                         <DropdownMenuItem
                                             onClick={() => onFileView(node)}
                                         >
-                                            <Eye className="mr-2 h-4 w-4" />
+                                            <Eye className="mr-2 h-4 w-4 flex-shrink-0" />
                                             보기
                                         </DropdownMenuItem>
                                     )}
@@ -151,7 +155,7 @@ function FileTreeNode({
                                         <DropdownMenuItem
                                             onClick={() => onFileEdit(node)}
                                         >
-                                            <Edit3 className="mr-2 h-4 w-4" />
+                                            <Edit3 className="mr-2 h-4 w-4 flex-shrink-0" />
                                             편집
                                         </DropdownMenuItem>
                                     )}
@@ -160,7 +164,7 @@ function FileTreeNode({
                                             onClick={() => onFileDelete(node)}
                                             className="text-red-600"
                                         >
-                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            <Trash2 className="mr-2 h-4 w-4 flex-shrink-0" />
                                             삭제
                                         </DropdownMenuItem>
                                     )}
@@ -171,7 +175,7 @@ function FileTreeNode({
                                     onClick={() => onFolderDelete(node)}
                                     className="text-red-600"
                                 >
-                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    <Trash2 className="mr-2 h-4 w-4 flex-shrink-0" />
                                     폴더 삭제
                                 </DropdownMenuItem>
                             )}
@@ -192,6 +196,7 @@ function FileTreeNode({
                             onFileDelete={onFileDelete}
                             onFileView={onFileView}
                             onFolderDelete={onFolderDelete}
+                            compactMode={compactMode}
                         />
                     </div>
                 )}
@@ -202,6 +207,7 @@ function FileTreeNode({
 interface FileTreeInternalProps
     extends Omit<FileTreeProps, 'expandedFolders' | 'onToggleFolder'> {
     level?: number;
+    compactMode?: boolean;
 }
 
 function FileTree({
@@ -212,6 +218,7 @@ function FileTree({
     onFileDelete,
     onFileView,
     onFolderDelete,
+    compactMode = false,
 }: FileTreeInternalProps) {
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
         new Set(),
@@ -243,6 +250,7 @@ function FileTree({
                     onFileDelete={onFileDelete}
                     onFileView={onFileView}
                     onFolderDelete={onFolderDelete}
+                    compactMode={compactMode}
                 />
             ))}
         </div>
@@ -258,6 +266,7 @@ export default function FileTreeComponent({
     onFolderDelete,
     expandedFolders,
     onToggleFolder,
+    compactMode = false,
 }: FileTreeProps) {
     const [internalExpandedFolders, setInternalExpandedFolders] = useState<
         Set<string>
@@ -296,6 +305,7 @@ export default function FileTreeComponent({
                     onFileDelete={onFileDelete}
                     onFileView={onFileView}
                     onFolderDelete={onFolderDelete}
+                    compactMode={compactMode}
                 />
             ))}
         </div>

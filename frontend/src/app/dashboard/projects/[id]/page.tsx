@@ -5,7 +5,16 @@ import { useParams, useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Plus, File, Edit3, Eye, Lock, Upload } from 'lucide-react';
+import {
+    ArrowLeft,
+    Plus,
+    File,
+    Edit3,
+    Eye,
+    Lock,
+    Upload,
+    Code,
+} from 'lucide-react';
 import { useProject } from '@/hooks/useProjects';
 import {
     useProjectFiles,
@@ -315,6 +324,16 @@ export default function ProjectDetailPage() {
                                 </p>
                             </div>
                             <div className="flex space-x-2">
+                                <Button
+                                    onClick={() =>
+                                        router.push(
+                                            `/dashboard/projects/${projectId}/ide`,
+                                        )
+                                    }
+                                >
+                                    <Code className="mr-2 h-4 w-4" />
+                                    IDE 열기
+                                </Button>
                                 <Button
                                     variant="outline"
                                     onClick={() =>
