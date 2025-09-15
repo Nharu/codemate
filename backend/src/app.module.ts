@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { RedisModule } from './redis/redis.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
@@ -15,6 +16,7 @@ import { ProjectsModule } from './modules/projects/projects.module';
             isGlobal: true,
             envFilePath: '.env',
         }),
+        RedisModule,
         DatabaseModule,
         AuthModule,
         UsersModule,

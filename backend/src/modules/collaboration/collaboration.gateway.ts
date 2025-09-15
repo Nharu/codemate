@@ -34,34 +34,31 @@ interface JwtPayload {
 interface SocketWithUser extends Socket {
     data: {
         user?: ConnectedUser;
-        [key: string]: any;
     };
 }
 
 @WebSocketGateway({
-    cors: {
-        origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-        credentials: true,
-    },
+    namespace: '/collaboration',
 })
 export class CollaborationGateway
     implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
     @WebSocketServer() server: Server;
-    private logger: Logger = new Logger('CollaborationGateway');
-    private rooms = new Map<string, Room>();
-    private userSockets = new Map<string, Socket>();
+    private readonly logger = new Logger(CollaborationGateway.name);
+    private readonly rooms = new Map<string, Room>();
+    private readonly userSockets = new Map<string, Socket>();
 
     constructor(
         private jwtService: JwtService,
         private usersService: UsersService,
     ) {}
 
-    afterInit(_server: Server) {
-        this.logger.log('WebSocket Gateway initialized');
+    afterInit(_server: Server): void {
+        this.logger.log('CollaborationGateway initialized');
+        this.logger.log('Socket.IO server is running');
     }
 
-    async handleConnection(client: SocketWithUser) {
+    async handleConnection(client: SocketWithUser): Promise<void> {
         try {
             const token = client.handshake.auth.token as string;
             if (!token) {
@@ -71,8 +68,8 @@ export class CollaborationGateway
 
             const payload =
                 await this.jwtService.verifyAsync<JwtPayload>(token);
-
             const userEntity = await this.usersService.findById(payload.sub);
+
             if (!userEntity) {
                 client.disconnect();
                 return;
@@ -94,20 +91,20 @@ export class CollaborationGateway
         }
     }
 
-    handleDisconnect(client: SocketWithUser) {
+    handleDisconnect(client: SocketWithUser): void {
         const user = client.data.user;
-        if (user) {
-            this.userSockets.delete(user.userId);
-            this.leaveAllRooms(client);
-            this.logger.log(`User disconnected: ${user.username}`);
-        }
+        if (!user) return;
+
+        this.userSockets.delete(user.userId);
+        this.leaveAllRooms(client);
+        this.logger.log(`User disconnected: ${user.username}`);
     }
 
     @SubscribeMessage('join-room')
     handleJoinRoom(
         @MessageBody() data: { roomId: string },
         @ConnectedSocket() client: SocketWithUser,
-    ) {
+    ): { error: string } | { success: boolean; users: ConnectedUser[] } {
         const { roomId } = data;
         const user = client.data.user;
 
@@ -118,10 +115,7 @@ export class CollaborationGateway
         void client.join(roomId);
 
         if (!this.rooms.has(roomId)) {
-            this.rooms.set(roomId, {
-                id: roomId,
-                users: [],
-            });
+            this.rooms.set(roomId, { id: roomId, users: [] });
         }
 
         const room = this.rooms.get(roomId)!;
@@ -142,17 +136,14 @@ export class CollaborationGateway
 
         this.logger.log(`User ${user.username} joined room ${roomId}`);
 
-        return {
-            success: true,
-            users: room.users,
-        };
+        return { success: true, users: room.users };
     }
 
     @SubscribeMessage('leave-room')
     handleLeaveRoom(
         @MessageBody() data: { roomId: string },
         @ConnectedSocket() client: SocketWithUser,
-    ) {
+    ): { error: string } | { success: boolean } {
         const { roomId } = data;
         const user = client.data.user;
 
@@ -162,7 +153,7 @@ export class CollaborationGateway
 
         void client.leave(roomId);
 
-        const room = this.rooms.get(roomId)!;
+        const room = this.rooms.get(roomId);
         if (room) {
             room.users = room.users.filter((u) => u.userId !== user.userId);
 
@@ -177,7 +168,6 @@ export class CollaborationGateway
         }
 
         this.logger.log(`User ${user.username} left room ${roomId}`);
-
         return { success: true };
     }
 
@@ -195,7 +185,7 @@ export class CollaborationGateway
             };
         },
         @ConnectedSocket() client: SocketWithUser,
-    ) {
+    ): { error: string } | void {
         const { roomId, position, selection } = data;
         const user = client.data.user;
 
@@ -228,7 +218,7 @@ export class CollaborationGateway
             versionId: number;
         },
         @ConnectedSocket() client: SocketWithUser,
-    ) {
+    ): { error: string } | void {
         const { roomId, changes, versionId } = data;
         const user = client.data.user;
 
@@ -254,7 +244,7 @@ export class CollaborationGateway
             message: string;
         },
         @ConnectedSocket() client: SocketWithUser,
-    ) {
+    ): { error: string } | { success: boolean } {
         const { roomId, message } = data;
         const user = client.data.user;
 
@@ -271,7 +261,6 @@ export class CollaborationGateway
         };
 
         this.server.to(roomId).emit('chat-message', chatMessage);
-
         this.logger.debug(
             `Chat message in room ${roomId} from ${user.username}`,
         );
@@ -279,7 +268,7 @@ export class CollaborationGateway
         return { success: true };
     }
 
-    private leaveAllRooms(client: SocketWithUser) {
+    private leaveAllRooms(client: SocketWithUser): void {
         const user = client.data.user;
         if (!user) return;
 
@@ -302,11 +291,11 @@ export class CollaborationGateway
     }
 
     getRoomUsers(roomId: string): ConnectedUser[] {
-        const room = this.rooms.get(roomId)!;
+        const room = this.rooms.get(roomId);
         return room ? room.users : [];
     }
 
-    broadcastToRoom(roomId: string, event: string, data: any) {
+    broadcastToRoom(roomId: string, event: string, data: unknown): void {
         this.server.to(roomId).emit(event, data);
     }
 }

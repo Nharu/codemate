@@ -164,6 +164,7 @@ export default function ProjectIDEPage() {
             <div className="flex-1 overflow-hidden">
                 {files ? (
                     <WebIDE
+                        projectId={projectId}
                         files={files}
                         onFileCreate={handleFileCreate}
                         onFileUpdate={handleFileUpdate}

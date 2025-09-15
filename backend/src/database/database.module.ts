@@ -19,8 +19,7 @@ import { File } from '../modules/projects/file.entity';
                 entities: [User, Project, File],
                 synchronize:
                     configService.get<string>('NODE_ENV') !== 'production',
-                logging:
-                    configService.get<string>('NODE_ENV') === 'development',
+                logging: false,
             }),
             inject: [ConfigService],
         }),

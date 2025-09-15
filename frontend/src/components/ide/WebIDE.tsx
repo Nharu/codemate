@@ -12,6 +12,7 @@ import FileTreeComponent from '@/components/ui/file-tree';
 import { buildFileTree, type FileNode } from '@/lib/file-tree';
 import { cn } from '@/lib/utils';
 import { NewFileModal } from '@/components/ui/new-file-modal';
+import { useIdeSessionSocket } from '@/hooks/useIdeSessionSocket';
 import type { editor } from 'monaco-editor';
 
 interface OpenTab {
@@ -25,6 +26,7 @@ interface OpenTab {
 }
 
 interface WebIDEProps {
+    projectId: string;
     files: ProjectFile[];
     onFileCreate?: (
         path: string,
@@ -37,6 +39,7 @@ interface WebIDEProps {
 }
 
 export default function WebIDE({
+    projectId,
     files,
     onFileCreate,
     onFileUpdate,
@@ -49,11 +52,20 @@ export default function WebIDE({
     const [sidebarWidth, setSidebarWidth] = useState(320);
     const [isResizing, setIsResizing] = useState(false);
     const [isNewFileModalOpen, setIsNewFileModalOpen] = useState(false);
+    const [isSessionLoaded, setIsSessionLoaded] = useState(false);
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+
+    // IDE Session socket
+    const {
+        sessionData,
+        isLoading: isSessionLoading,
+        updateSession,
+        extendSession,
+    } = useIdeSessionSocket(projectId);
 
     const activeTab = openTabs.find((tab) => tab.id === activeTabId);
 
-    const getLanguageFromPath = (path: string): string => {
+    const getLanguageFromPath = useCallback((path: string): string => {
         const ext = path.split('.').pop()?.toLowerCase();
         const languageMap: Record<string, string> = {
             js: 'javascript',
@@ -83,7 +95,7 @@ export default function WebIDE({
             sh: 'bash',
         };
         return languageMap[ext || ''] || 'plaintext';
-    };
+    }, []);
 
     const openFile = (file: FileNode) => {
         const existingTab = openTabs.find((tab) => tab.id === file.id);
@@ -277,6 +289,101 @@ export default function WebIDE({
             document.body.style.userSelect = '';
         };
     }, [isResizing, resize]);
+
+    // Session restoration effect
+    useEffect(() => {
+        if (!isSessionLoading && !isSessionLoaded) {
+            if (sessionData) {
+                // Restore session state
+                setSidebarCollapsed(sessionData.sidebarCollapsed);
+                setSidebarWidth(sessionData.sidebarWidth);
+
+                // Restore tabs that still exist in current files
+                const validTabs: OpenTab[] = [];
+
+                for (const sessionTab of sessionData.openTabs) {
+                    if (sessionTab.isNew) {
+                        // Skip new/unsaved tabs as they won't exist after refresh
+                        continue;
+                    }
+
+                    const projectFile = files.find(
+                        (f) => f.id === sessionTab.id,
+                    );
+                    if (projectFile) {
+                        validTabs.push({
+                            id: sessionTab.id,
+                            name: sessionTab.name,
+                            path: sessionTab.path,
+                            content: projectFile.content || '',
+                            language:
+                                projectFile.language ||
+                                getLanguageFromPath(sessionTab.path),
+                            isDirty: false,
+                            isNew: false,
+                        });
+                    }
+                }
+
+                setOpenTabs(validTabs);
+
+                // Restore active tab if it exists in valid tabs
+                const activeTab = validTabs.find(
+                    (tab) => tab.id === sessionData.activeTabId,
+                );
+                setActiveTabId(activeTab ? sessionData.activeTabId : null);
+            }
+            // Mark session as loaded regardless of whether data exists or not
+            setIsSessionLoaded(true);
+        }
+    }, [
+        sessionData,
+        isSessionLoaded,
+        isSessionLoading,
+        files,
+        getLanguageFromPath,
+    ]);
+
+    // Auto-save session state via WebSocket
+    useEffect(() => {
+        if (!isSessionLoaded) return; // Don't save until initial session is loaded
+
+        const sessionState = {
+            openTabs: openTabs
+                .filter((tab) => !tab.isNew)
+                .map((tab) => ({
+                    id: tab.id,
+                    name: tab.name,
+                    path: tab.path,
+                    language: tab.language,
+                    isNew: tab.isNew,
+                })),
+            activeTabId,
+            sidebarCollapsed,
+            sidebarWidth,
+        };
+
+        updateSession(sessionState);
+    }, [
+        openTabs,
+        activeTabId,
+        sidebarCollapsed,
+        sidebarWidth,
+        isSessionLoaded,
+        updateSession,
+    ]);
+
+    // Extend session TTL every 5 minutes
+    useEffect(() => {
+        const interval = setInterval(
+            () => {
+                extendSession();
+            },
+            5 * 60 * 1000,
+        ); // 5 minutes
+
+        return () => clearInterval(interval);
+    }, [extendSession]);
 
     return (
         <div className="flex h-full bg-gray-50">
