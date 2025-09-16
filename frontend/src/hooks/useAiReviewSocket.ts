@@ -80,14 +80,17 @@ export const useAiReviewSocket = (): UseAiReviewSocketReturn => {
         };
 
         const handleReviewProgress = (progress: ReviewProgress): void => {
+            console.log('WebSocket: review:progress received:', progress);
             setCurrentProgress(progress);
             setLastError(null); // Clear any previous errors
         };
 
         const handleReviewCompleted = (result: ReviewResult): void => {
+            console.log('WebSocket: review:completed received:', result);
             setLastResult(result);
             setCurrentProgress(null);
             setLastError(null);
+            console.log('WebSocket: state updated after completion');
         };
 
         const handleReviewError = (error: ReviewError): void => {

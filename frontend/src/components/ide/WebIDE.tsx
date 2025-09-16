@@ -29,7 +29,11 @@ import { NewFileModal } from '@/components/ui/new-file-modal';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
 import { useIdeSessionSocket } from '@/hooks/useIdeSessionSocket';
-import { useAiReviewSocket } from '@/hooks/useAiReviewSocket';
+import {
+    useAiReviewSocket,
+    type ReviewProgress,
+    type ReviewError,
+} from '@/hooks/useAiReviewSocket';
 import CodeReviewPanel, {
     type CodeReviewResult,
 } from '@/components/ai/CodeReviewPanel';
@@ -94,8 +98,23 @@ export default function WebIDE({
         new Set(),
     );
     const [isReviewPanelOpen, setIsReviewPanelOpen] = useState(false);
-    const [currentFileReview, setCurrentFileReview] =
-        useState<CodeReviewResult | null>(null);
+    const [reviewingTabPath, setReviewingTabPath] = useState<string | null>(
+        null,
+    );
+    const [currentReviewRequestId, setCurrentReviewRequestId] = useState<
+        string | null
+    >(null);
+    // File-specific review states
+    const [fileReviewStates, setFileReviewStates] = useState<
+        Record<
+            string,
+            {
+                result?: CodeReviewResult;
+                progress?: ReviewProgress;
+                error?: ReviewError;
+            }
+        >
+    >({});
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
     // AI Code Review Socket
@@ -103,11 +122,47 @@ export default function WebIDE({
         isConnected: isReviewSocketConnected,
         startReview,
         cancelReview,
-        currentProgress,
-        lastResult: reviewResult,
-        lastError: reviewError,
-        clearState: clearReviewState,
+        currentProgress: globalProgress,
+        lastResult: globalResult,
+        lastError: globalError,
+        clearState: clearGlobalReviewState,
     } = useAiReviewSocket();
+
+    // File-specific review state management
+    const updateFileReviewState = useCallback(
+        (
+            filePath: string,
+            updates: {
+                result?: CodeReviewResult;
+                progress?: ReviewProgress;
+                error?: ReviewError;
+            },
+        ) => {
+            setFileReviewStates((prev) => ({
+                ...prev,
+                [filePath]: {
+                    ...prev[filePath],
+                    ...updates,
+                },
+            }));
+        },
+        [],
+    );
+
+    const getFileReviewState = useCallback(
+        (filePath: string) => {
+            return fileReviewStates[filePath] || {};
+        },
+        [fileReviewStates],
+    );
+
+    const clearFileReviewState = useCallback((filePath: string) => {
+        setFileReviewStates((prev) => {
+            const newState = { ...prev };
+            delete newState[filePath];
+            return newState;
+        });
+    }, []);
 
     // IDE Session socket
     const {
@@ -118,6 +173,135 @@ export default function WebIDE({
     } = useIdeSessionSocket(projectId);
 
     const activeTab = openTabs.find((tab) => tab.id === activeTabId);
+
+    // Get current file review state
+    const currentFileReviewState = activeTab
+        ? getFileReviewState(activeTab.path)
+        : {};
+    const currentFileReview = currentFileReviewState.result;
+    const currentProgress = currentFileReviewState.progress;
+    const reviewError = currentFileReviewState.error;
+
+    // Force UI update when file review states change
+    useEffect(() => {
+        console.log('Current file review state changed:', {
+            activeTabPath: activeTab?.path,
+            currentFileReviewState,
+            currentFileReview: !!currentFileReview,
+            currentProgress: !!currentProgress,
+            reviewError: !!reviewError,
+        });
+    }, [
+        activeTab?.path,
+        currentFileReview,
+        currentProgress,
+        reviewError,
+        fileReviewStates,
+        currentFileReviewState,
+    ]);
+
+    // Sync global WebSocket events to file-specific states
+    useEffect(() => {
+        console.log('globalProgress effect triggered:', {
+            globalProgress,
+            reviewingTabPath,
+            currentReviewRequestId,
+        });
+        if (
+            globalProgress &&
+            currentReviewRequestId &&
+            globalProgress.requestId === currentReviewRequestId
+        ) {
+            console.log(
+                'Processing globalProgress for requestId:',
+                currentReviewRequestId,
+                'tab:',
+                reviewingTabPath,
+                globalProgress,
+            );
+            const targetFilePath = reviewingTabPath || activeTab?.path;
+            if (targetFilePath) {
+                updateFileReviewState(targetFilePath, {
+                    progress: globalProgress,
+                    error: undefined,
+                });
+            }
+        }
+    }, [
+        globalProgress,
+        reviewingTabPath,
+        currentReviewRequestId,
+        updateFileReviewState,
+        activeTab,
+    ]);
+
+    useEffect(() => {
+        console.log('globalResult effect triggered:', {
+            globalResult,
+            reviewingTabPath,
+            currentReviewRequestId,
+        });
+        if (
+            globalResult &&
+            currentReviewRequestId &&
+            globalResult.requestId === currentReviewRequestId
+        ) {
+            console.log(
+                'Processing globalResult for requestId:',
+                currentReviewRequestId,
+                'tab:',
+                reviewingTabPath,
+                globalResult,
+            );
+
+            // Find the file path that corresponds to this request
+            // Use reviewingTabPath if available, otherwise try to match with current active tab
+            const targetFilePath = reviewingTabPath || activeTab?.path;
+
+            if (targetFilePath) {
+                updateFileReviewState(targetFilePath, {
+                    result: globalResult.result,
+                    progress: undefined,
+                    error: undefined,
+                });
+                console.log('Updated file review state for:', targetFilePath);
+            }
+
+            // Clear tracking
+            setReviewingTabPath(null);
+            setCurrentReviewRequestId(null);
+        }
+    }, [
+        globalResult,
+        reviewingTabPath,
+        currentReviewRequestId,
+        updateFileReviewState,
+        activeTab,
+    ]);
+
+    useEffect(() => {
+        if (
+            globalError &&
+            currentReviewRequestId &&
+            globalError.requestId === currentReviewRequestId
+        ) {
+            const targetFilePath = reviewingTabPath || activeTab?.path;
+            if (targetFilePath) {
+                updateFileReviewState(targetFilePath, {
+                    error: globalError,
+                    progress: undefined,
+                });
+            }
+            setReviewingTabPath(null); // Clear the tracking
+            setCurrentReviewRequestId(null);
+        }
+    }, [
+        globalError,
+        reviewingTabPath,
+        currentReviewRequestId,
+        updateFileReviewState,
+        activeTab,
+    ]);
 
     const getLanguageFromPath = useCallback((path: string): string => {
         const ext = path.split('.').pop()?.toLowerCase();
@@ -441,7 +625,17 @@ export default function WebIDE({
             // Apply decorations
             const model = editor.getModel();
             if (model) {
-                editor.deltaDecorations([], decorations);
+                // Clear existing AI review decorations first
+                const allDecorations = model.getAllDecorations();
+                const existingAiReviewDecorations = allDecorations.filter((d) =>
+                    d.options.className?.includes('ai-review-decoration'),
+                );
+
+                // Replace old decorations with new ones
+                editor.deltaDecorations(
+                    existingAiReviewDecorations.map((d) => d.id),
+                    decorations,
+                );
                 monaco.editor.setModelMarkers(model, 'ai-review', markers);
             }
         },
@@ -458,7 +652,7 @@ export default function WebIDE({
         }
     }, [currentFileReview, activeTab, applyReviewDecorations]);
 
-    const handleStartNewReview = useCallback(() => {
+    const handleStartNewReview = useCallback(async () => {
         if (!activeTab) {
             setAlertMessage('리뷰할 파일을 선택해주세요.');
             setIsAlertModalOpen(true);
@@ -479,12 +673,39 @@ export default function WebIDE({
             return;
         }
 
+        // Clear previous review markings before starting new review
+        if (editorRef.current) {
+            const monaco = await import('monaco-editor');
+            const editor = editorRef.current;
+            const model = editor.getModel();
+            if (model) {
+                // Clear only AI review markers
+                monaco.editor.setModelMarkers(model, 'ai-review', []);
+
+                // Clear AI review decorations
+                const allDecorations = model.getAllDecorations();
+                const aiReviewDecorations = allDecorations.filter((d) =>
+                    d.options.className?.includes('ai-review-decoration'),
+                );
+                if (aiReviewDecorations.length > 0) {
+                    editor.deltaDecorations(
+                        aiReviewDecorations.map((d) => d.id),
+                        [],
+                    );
+                }
+            }
+        }
+
         const language =
             activeTab.language ||
             getLanguageFromPath(activeTab.path) ||
             'typescript';
 
         const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        // Track which tab is being reviewed
+        setReviewingTabPath(activeTab.path);
+        setCurrentReviewRequestId(requestId);
 
         startReview({
             requestId,
@@ -496,14 +717,19 @@ export default function WebIDE({
         });
 
         setIsReviewPanelOpen(true);
-        clearReviewState(); // Clear previous state
+        // Clear the file-specific state for this file
+        if (activeTab) {
+            clearFileReviewState(activeTab.path);
+        }
+        clearGlobalReviewState(); // Clear global state too
     }, [
         activeTab,
         projectId,
         startReview,
         isReviewSocketConnected,
         getLanguageFromPath,
-        clearReviewState,
+        clearFileReviewState,
+        clearGlobalReviewState,
     ]);
 
     // Update editor decorations when review results change
@@ -938,18 +1164,34 @@ export default function WebIDE({
         return () => clearInterval(interval);
     }, [extendSession]);
 
-    // Save review result when completed
-    useEffect(() => {
-        if (reviewResult?.result && activeTab) {
-            setCurrentFileReview(reviewResult.result);
-        }
-    }, [reviewResult, activeTab]);
+    // This is now handled by the global WebSocket sync effects above
 
     // Load previous review when switching files
     useEffect(() => {
         const loadPreviousReview = async () => {
             if (!activeTab || !activeTab.path) {
-                setCurrentFileReview(null);
+                return;
+            }
+
+            // If we already have review state for this file, apply decorations and return
+            if (currentFileReviewState.result) {
+                // Auto-apply decorations when switching to file with existing results
+                await applyReviewDecorations(
+                    currentFileReviewState.result,
+                    activeTab,
+                );
+                return;
+            }
+
+            // Check if this file is currently being reviewed (and results might be available globally)
+            if (reviewingTabPath === activeTab.path && globalResult?.result) {
+                // Apply the global result to this file's state
+                updateFileReviewState(activeTab.path, {
+                    result: globalResult.result,
+                    progress: undefined,
+                    error: undefined,
+                });
+                await applyReviewDecorations(globalResult.result, activeTab);
                 return;
             }
 
@@ -962,23 +1204,30 @@ export default function WebIDE({
                 });
 
                 if (response.data?.reviewResult) {
-                    setCurrentFileReview(response.data.reviewResult);
+                    updateFileReviewState(activeTab.path, {
+                        result: response.data.reviewResult,
+                    });
                     // Auto-apply decorations when review data is loaded
                     await applyReviewDecorations(
                         response.data.reviewResult,
                         activeTab,
                     );
-                } else {
-                    setCurrentFileReview(null);
                 }
             } catch {
                 // No previous review found or error - that's okay
-                setCurrentFileReview(null);
             }
         };
 
         loadPreviousReview();
-    }, [activeTabId, projectId, applyReviewDecorations, activeTab]);
+    }, [
+        activeTab,
+        projectId,
+        applyReviewDecorations,
+        currentFileReviewState.result,
+        updateFileReviewState,
+        reviewingTabPath,
+        globalResult,
+    ]);
 
     return (
         <div className="flex h-full bg-gray-50">
@@ -1177,8 +1426,13 @@ export default function WebIDE({
                                         }
                                     }
 
-                                    // Clear current file review state immediately
-                                    setCurrentFileReview(null);
+                                    // Clear review tracking when switching tabs (if switching away from reviewing tab)
+                                    if (
+                                        reviewingTabPath &&
+                                        reviewingTabPath !== tab.path
+                                    ) {
+                                        setReviewingTabPath(null);
+                                    }
 
                                     // Switch to new tab
                                     setActiveTabId(tab.id);
@@ -1321,14 +1575,24 @@ export default function WebIDE({
                     // Just close the panel, let review continue in background
                     setIsReviewPanelOpen(false);
                 }}
-                result={currentFileReview || reviewResult?.result || null}
+                result={currentFileReview || null}
                 isLoading={!!currentProgress}
                 onRequestReview={handleStartNewReview}
                 currentProgress={currentProgress}
                 error={reviewError}
                 onCancel={
                     currentProgress
-                        ? () => cancelReview(currentProgress.requestId)
+                        ? () => {
+                              cancelReview(currentProgress.requestId);
+                              // Clear the file-specific progress state when cancelled
+                              if (activeTab) {
+                                  updateFileReviewState(activeTab.path, {
+                                      progress: undefined,
+                                      error: undefined,
+                                  });
+                              }
+                              setReviewingTabPath(null);
+                          }
                         : undefined
                 }
             />

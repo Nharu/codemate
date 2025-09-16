@@ -56,6 +56,7 @@ export class AiService {
             const reviewResult = this.parseResponse(
                 text,
                 Date.now() - startTime,
+                request.code,
             );
 
             this.logger.log(
@@ -71,17 +72,20 @@ export class AiService {
 
     private buildPrompt(request: CodeReviewRequestDto): string {
         const languageContext = this.getLanguageContext(request.language);
+        const numberedCode = this.addLineNumbers(request.code);
 
-        return `You are a senior software engineer and code reviewer specializing in ${request.language}. 
+        return `You are a senior software engineer and code reviewer specializing in ${request.language}.
 Please perform a comprehensive code review of the following ${request.language} code.
 
 ${request.context ? `Context: ${request.context}` : ''}
 ${request.filePath ? `File: ${request.filePath}` : ''}
 
-Code to review:
+Code to review (with line numbers):
 \`\`\`${request.language}
-${request.code}
+${numberedCode}
 \`\`\`
+
+IMPORTANT: When reporting issues, use the EXACT line numbers shown in the code above. Do not adjust or estimate line numbers.
 
 ${languageContext}
 
@@ -104,6 +108,10 @@ Please analyze the code and provide a detailed review in the following JSON form
   "suggestions": ["General improvement suggestions"],
   "strengths": ["What the code does well"]
 }
+
+CRITICAL:
+- The "line" field must contain the EXACT line number as shown in the numbered code above. For example, if you see "15: const x = 5;" in the code, then the line number is 15, not any other number.
+- Do NOT create duplicate issues for the same line and same problem. Each unique issue should appear only once.
 
 Focus on:
 - Potential bugs and errors
@@ -195,9 +203,24 @@ Pay special attention to:
         return contexts[language] || '';
     }
 
+    private addLineNumbers(code: string): string {
+        const lines = code.split('\n');
+        const maxLineNumberWidth = lines.length.toString().length;
+
+        return lines
+            .map((line, index) => {
+                const lineNumber = (index + 1)
+                    .toString()
+                    .padStart(maxLineNumberWidth, ' ');
+                return `${lineNumber}: ${line}`;
+            })
+            .join('\n');
+    }
+
     private parseResponse(
         responseText: string,
         reviewTime: number,
+        originalCode?: string,
     ): CodeReviewResponseDto {
         try {
             // Extract JSON from code blocks if present
@@ -228,6 +251,7 @@ Pay special attention to:
                         : 'No summary provided',
                 issues: this.validateIssues(
                     Array.isArray(parsed.issues) ? parsed.issues : [],
+                    originalCode,
                 ),
                 suggestions: Array.isArray(parsed.suggestions)
                     ? parsed.suggestions.map(String)
@@ -253,8 +277,15 @@ Pay special attention to:
         }
     }
 
-    private validateIssues(issues: unknown[]): ReviewIssue[] {
-        return issues
+    private validateIssues(
+        issues: unknown[],
+        originalCode?: string,
+    ): ReviewIssue[] {
+        const totalLines = originalCode
+            ? originalCode.split('\n').length
+            : Infinity;
+
+        const validatedIssues = issues
             .filter((issue): issue is Record<string, unknown> => {
                 return (
                     issue !== null &&
@@ -262,36 +293,83 @@ Pay special attention to:
                     !Array.isArray(issue)
                 );
             })
-            .map((issue) => ({
-                line: Math.max(1, parseInt(String(issue.line)) || 1),
-                column:
-                    typeof issue.column === 'string' ||
-                    typeof issue.column === 'number'
-                        ? Math.max(1, parseInt(String(issue.column)))
-                        : undefined,
-                severity: this.validateSeverity(
-                    typeof issue.severity === 'string' ? issue.severity : '',
-                ),
-                category: this.validateCategory(
-                    typeof issue.category === 'string' ? issue.category : '',
-                ),
-                title:
-                    typeof issue.title === 'string'
-                        ? issue.title
-                        : 'Issue detected',
-                description:
-                    typeof issue.description === 'string'
-                        ? issue.description
-                        : 'No description provided',
-                suggestion:
-                    typeof issue.suggestion === 'string'
-                        ? issue.suggestion
-                        : undefined,
-                suggestedCode:
-                    typeof issue.suggestedCode === 'string'
-                        ? issue.suggestedCode
-                        : undefined,
-            }));
+            .map((issue) => {
+                let line = Math.max(1, parseInt(String(issue.line)) || 1);
+
+                // Clamp line number to valid range
+                if (originalCode) {
+                    line = Math.min(line, totalLines);
+                }
+
+                return {
+                    line,
+                    column:
+                        typeof issue.column === 'string' ||
+                        typeof issue.column === 'number'
+                            ? Math.max(1, parseInt(String(issue.column)))
+                            : undefined,
+                    severity: this.validateSeverity(
+                        typeof issue.severity === 'string'
+                            ? issue.severity
+                            : '',
+                    ),
+                    category: this.validateCategory(
+                        typeof issue.category === 'string'
+                            ? issue.category
+                            : '',
+                    ),
+                    title:
+                        typeof issue.title === 'string'
+                            ? issue.title
+                            : 'Issue detected',
+                    description:
+                        typeof issue.description === 'string'
+                            ? issue.description
+                            : 'No description provided',
+                    suggestion:
+                        typeof issue.suggestion === 'string'
+                            ? issue.suggestion
+                            : undefined,
+                    suggestedCode:
+                        typeof issue.suggestedCode === 'string'
+                            ? issue.suggestedCode
+                            : undefined,
+                };
+            });
+
+        // Remove duplicate issues (same line and title)
+        return this.deduplicateIssues(validatedIssues);
+    }
+
+    private deduplicateIssues(issues: ReviewIssue[]): ReviewIssue[] {
+        const seen = new Map<string, ReviewIssue>();
+
+        for (const issue of issues) {
+            const key = `${issue.line}-${issue.title.toLowerCase()}`;
+            const existing = seen.get(key);
+
+            if (!existing) {
+                seen.set(key, issue);
+            } else {
+                // Keep the issue with higher severity
+                const severityOrder = {
+                    critical: 5,
+                    high: 4,
+                    medium: 3,
+                    low: 2,
+                    info: 1,
+                };
+
+                if (
+                    severityOrder[issue.severity] >
+                    severityOrder[existing.severity]
+                ) {
+                    seen.set(key, issue);
+                }
+            }
+        }
+
+        return Array.from(seen.values());
     }
 
     private validateSeverity(severity: string): ReviewSeverity {
