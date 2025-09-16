@@ -57,6 +57,22 @@ const deleteFolder = async ({
     );
 };
 
+const renameFolder = async ({
+    projectId,
+    oldFolderPath,
+    newFolderPath,
+}: {
+    projectId: string;
+    oldFolderPath: string;
+    newFolderPath: string;
+}): Promise<File[]> => {
+    const response = await apiClient.patch(
+        `/projects/${projectId}/folders/${encodeURIComponent(oldFolderPath)}`,
+        { newPath: newFolderPath },
+    );
+    return response.data;
+};
+
 const uploadZip = async ({
     projectId,
     file,
@@ -186,6 +202,25 @@ export function useDeleteFolder() {
         },
         onError: (error) => {
             console.error('Folder deletion failed:', error);
+        },
+    });
+}
+
+export function useRenameFolder() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: renameFolder,
+        onSuccess: (files) => {
+            if (files.length > 0) {
+                const projectId = files[0].project_id;
+                queryClient.invalidateQueries({
+                    queryKey: ['projects', projectId, 'files'],
+                });
+            }
+        },
+        onError: (error) => {
+            console.error('Folder rename failed:', error);
         },
     });
 }

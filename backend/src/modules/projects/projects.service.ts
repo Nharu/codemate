@@ -174,6 +174,18 @@ export class ProjectsService {
 
         const file = await this.getFile(projectId, fileId, userId);
 
+        // If path is being updated, check for conflicts
+        if (updateFileDto.path && updateFileDto.path !== file.path) {
+            const existingFile = await this.fileRepository.findOne({
+                where: { project_id: projectId, path: updateFileDto.path },
+            });
+            if (existingFile && existingFile.id !== fileId) {
+                throw new ConflictException(
+                    'File with this path already exists',
+                );
+            }
+        }
+
         Object.assign(file, updateFileDto);
         if (updateFileDto.content) {
             file.size = Buffer.byteLength(updateFileDto.content, 'utf8');
@@ -230,6 +242,71 @@ export class ProjectsService {
 
         // Delete all files in the folder
         await this.fileRepository.remove(folderFiles);
+    }
+
+    async renameFolderFiles(
+        projectId: string,
+        oldFolderPath: string,
+        newFolderPath: string,
+        userId: string,
+    ): Promise<File[]> {
+        const project = await this.findOne(projectId, userId);
+
+        if (project.owner_id !== userId) {
+            throw new ForbiddenException(
+                'Only project owner can rename folders',
+            );
+        }
+
+        // Normalize folder paths
+        const normalizedOldPath = oldFolderPath.endsWith('/')
+            ? oldFolderPath
+            : oldFolderPath + '/';
+        const normalizedNewPath = newFolderPath.endsWith('/')
+            ? newFolderPath
+            : newFolderPath + '/';
+
+        // Find all files in the folder
+        const allFiles = await this.fileRepository.find({
+            where: { project_id: projectId },
+        });
+
+        const folderFiles = allFiles.filter((file) =>
+            file.path.startsWith(normalizedOldPath),
+        );
+
+        if (folderFiles.length === 0) {
+            throw new NotFoundException(
+                'No files found in the specified folder',
+            );
+        }
+
+        // Check for conflicts with new paths
+        const updatedFiles: File[] = [];
+        for (const file of folderFiles) {
+            const newPath = file.path.replace(
+                normalizedOldPath,
+                normalizedNewPath,
+            );
+
+            // Check if new path already exists
+            const existingFile = await this.fileRepository.findOne({
+                where: { project_id: projectId, path: newPath },
+            });
+
+            if (existingFile && existingFile.id !== file.id) {
+                throw new ConflictException(
+                    `File with path "${newPath}" already exists`,
+                );
+            }
+
+            // Update the file path
+            file.path = newPath;
+            const updatedFile = await this.fileRepository.save(file);
+            updatedFiles.push(updatedFile);
+        }
+
+        return updatedFiles;
     }
 
     async uploadZipFile(

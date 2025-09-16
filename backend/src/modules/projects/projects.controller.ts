@@ -210,6 +210,36 @@ export class ProjectsController {
         );
     }
 
+    @Patch(':id/folders/*')
+    @ApiOperation({
+        summary: 'Rename a folder (updates all files in the folder)',
+    })
+    @ApiParam({ name: 'id', description: 'Project ID', type: 'string' })
+    @ApiResponse({ status: 200, description: 'Folder renamed successfully' })
+    @ApiResponse({
+        status: 403,
+        description: 'Only project owner can rename folders',
+    })
+    @ApiResponse({ status: 404, description: 'Folder not found' })
+    async renameFolder(
+        @Param('id', ParseUUIDPipe) projectId: string,
+        @Body() body: { newPath: string },
+        @Request() req: AuthenticatedRequest,
+    ) {
+        // Extract folder path from the remaining URL
+        const folderPath = req.url
+            .split(`/projects/${projectId}/folders/`)[1]
+            .split('?')[0];
+        const decodedFolderPath = decodeURIComponent(folderPath);
+
+        return await this.projectsService.renameFolderFiles(
+            projectId,
+            decodedFolderPath,
+            body.newPath,
+            req.user.id,
+        );
+    }
+
     @Post(':id/upload-zip')
     @UseInterceptors(FileInterceptor('file'))
     @ApiOperation({ summary: 'Upload ZIP file to extract multiple files' })

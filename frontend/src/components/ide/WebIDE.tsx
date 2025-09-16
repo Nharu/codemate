@@ -36,8 +36,13 @@ interface WebIDEProps {
         language?: string,
     ) => Promise<ProjectFile | void>;
     onFileUpdate?: (fileId: string, content: string) => Promise<void>;
+    onFileRename?: (fileId: string, newPath: string) => Promise<void>;
     onFileDelete?: (fileId: string) => Promise<void>;
     onFolderDelete?: (folderPath: string) => Promise<void>;
+    onFolderRename?: (
+        oldFolderPath: string,
+        newFolderPath: string,
+    ) => Promise<void>;
 }
 
 export default function WebIDE({
@@ -45,8 +50,10 @@ export default function WebIDE({
     files,
     onFileCreate,
     onFileUpdate,
+    onFileRename,
     onFileDelete,
     onFolderDelete,
+    onFolderRename,
 }: WebIDEProps) {
     const [openTabs, setOpenTabs] = useState<OpenTab[]>([]);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -349,6 +356,81 @@ export default function WebIDE({
         setIsNewFileModalOpen(true);
     };
 
+    const handleFileRename = async (file: FileNode, newPath: string) => {
+        try {
+            if (file.type === 'folder') {
+                // 폴더 이름 변경
+                if (onFolderRename) {
+                    await onFolderRename(file.path, newPath);
+
+                    // Update open tabs if any files in the renamed folder are open
+                    const oldPathPrefix = file.path.endsWith('/')
+                        ? file.path
+                        : file.path + '/';
+                    const newPathPrefix = newPath.endsWith('/')
+                        ? newPath
+                        : newPath + '/';
+
+                    setOpenTabs((prev) =>
+                        prev.map((tab) => {
+                            if (tab.path.startsWith(oldPathPrefix)) {
+                                const newTabPath = tab.path.replace(
+                                    oldPathPrefix,
+                                    newPathPrefix,
+                                );
+                                return {
+                                    ...tab,
+                                    name:
+                                        newTabPath.split('/').pop() ||
+                                        newTabPath,
+                                    path: newTabPath,
+                                };
+                            }
+                            return tab;
+                        }),
+                    );
+                }
+            } else {
+                // 파일 이름 변경
+                if (onFileRename) {
+                    await onFileRename(file.id, newPath);
+                    // Update open tabs if the renamed file is open
+                    setOpenTabs((prev) =>
+                        prev.map((tab) =>
+                            tab.id === file.id
+                                ? {
+                                      ...tab,
+                                      name: newPath.split('/').pop() || newPath,
+                                      path: newPath,
+                                  }
+                                : tab,
+                        ),
+                    );
+                }
+            }
+        } catch (error) {
+            console.error('이름 변경 실패:', error);
+
+            let errorMessage = `${
+                file.type === 'folder' ? '폴더' : '파일'
+            } 이름 변경에 실패했습니다.`;
+            if (error instanceof Error) {
+                if (
+                    error.message.includes('already exists') ||
+                    error.message.includes('Conflict') ||
+                    error.message.includes('409')
+                ) {
+                    errorMessage = `이미 "${newPath}" ${
+                        file.type === 'folder' ? '폴더' : '파일'
+                    }이 존재합니다. 다른 이름을 사용해주세요.`;
+                }
+            }
+
+            setAlertMessage(errorMessage);
+            setIsAlertModalOpen(true);
+        }
+    };
+
     const handleCreateNewFile = (filePath: string, language?: string) => {
         // 중복 파일 경로 체크
         const existingFile = files.find((file) => file.path === filePath);
@@ -619,6 +701,7 @@ export default function WebIDE({
                                         onNewFileInFolder={
                                             createNewFileInFolder
                                         }
+                                        onFileRename={handleFileRename}
                                         expandedFolders={expandedFolders}
                                         onToggleFolder={(path) => {
                                             setExpandedFolders((prev) => {

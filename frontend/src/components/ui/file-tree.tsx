@@ -13,9 +13,11 @@ import {
     Eye,
     Code2,
     Plus,
+    Edit,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './button';
+import { Input } from './input';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -32,6 +34,7 @@ interface FileTreeProps {
     onFileView?: (file: FileNode) => void;
     onFolderDelete?: (folder: FileNode) => void;
     onNewFileInFolder?: (folderPath: string) => void;
+    onFileRename?: (file: FileNode, newPath: string) => void;
     expandedFolders?: Set<string>;
     onToggleFolder?: (path: string) => void;
     compactMode?: boolean;
@@ -48,6 +51,7 @@ interface FileTreeNodeProps {
     onFileView?: (file: FileNode) => void;
     onFolderDelete?: (folder: FileNode) => void;
     onNewFileInFolder?: (folderPath: string) => void;
+    onFileRename?: (file: FileNode, newPath: string) => void;
     expandedFolders?: Set<string>;
     onToggleFolder?: (path: string) => void;
     compactMode?: boolean;
@@ -64,10 +68,44 @@ function FileTreeNode({
     onFileView,
     onFolderDelete,
     onNewFileInFolder,
+    onFileRename,
     expandedFolders,
     onToggleFolder,
     compactMode = false,
 }: FileTreeNodeProps) {
+    const [isRenaming, setIsRenaming] = useState(false);
+    const [newName, setNewName] = useState(node.name);
+
+    const handleRename = () => {
+        setIsRenaming(true);
+        setNewName(node.name);
+    };
+
+    const handleRenameSubmit = () => {
+        if (newName.trim() && newName !== node.name && onFileRename) {
+            // Calculate new path
+            const pathParts = node.path.split('/');
+            pathParts[pathParts.length - 1] = newName.trim();
+            const newPath = pathParts.join('/');
+
+            onFileRename(node, newPath);
+        }
+        setIsRenaming(false);
+    };
+
+    const handleRenameCancel = () => {
+        setIsRenaming(false);
+        setNewName(node.name);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleRenameSubmit();
+        } else if (e.key === 'Escape') {
+            handleRenameCancel();
+        }
+    };
+
     const formatFileSize = (bytes: number | undefined) => {
         if (bytes === undefined || bytes === null || isNaN(bytes))
             return '0 Bytes';
@@ -119,9 +157,21 @@ function FileTreeNode({
                             <File className="h-4 w-4 text-gray-500 flex-shrink-0" />
                         </>
                     )}
-                    <span className="font-medium text-sm truncate">
-                        {node.name}
-                    </span>
+                    {isRenaming ? (
+                        <Input
+                            value={newName}
+                            onChange={(e) => setNewName(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            onBlur={handleRenameSubmit}
+                            className="h-6 px-1 py-0 text-sm font-medium"
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    ) : (
+                        <span className="font-medium text-sm truncate">
+                            {node.name}
+                        </span>
+                    )}
                     {node.type === 'file' && !compactMode && (
                         <div className="flex items-center space-x-2 text-xs text-gray-500 flex-shrink-0">
                             {node.language && (
@@ -167,6 +217,14 @@ function FileTreeNode({
                                             편집
                                         </DropdownMenuItem>
                                     )}
+                                    {onFileRename && (
+                                        <DropdownMenuItem
+                                            onClick={handleRename}
+                                        >
+                                            <Edit className="mr-2 h-4 w-4 flex-shrink-0" />
+                                            이름 변경
+                                        </DropdownMenuItem>
+                                    )}
                                     {onFileDelete && (
                                         <DropdownMenuItem
                                             onClick={() => onFileDelete(node)}
@@ -188,6 +246,14 @@ function FileTreeNode({
                                         >
                                             <Plus className="mr-2 h-4 w-4 flex-shrink-0" />
                                             새 파일 만들기
+                                        </DropdownMenuItem>
+                                    )}
+                                    {onFileRename && (
+                                        <DropdownMenuItem
+                                            onClick={handleRename}
+                                        >
+                                            <Edit className="mr-2 h-4 w-4 flex-shrink-0" />
+                                            이름 변경
                                         </DropdownMenuItem>
                                     )}
                                     {onFolderDelete && (
@@ -219,6 +285,7 @@ function FileTreeNode({
                             onFileView={onFileView}
                             onFolderDelete={onFolderDelete}
                             onNewFileInFolder={onNewFileInFolder}
+                            onFileRename={onFileRename}
                             expandedFolders={expandedFolders}
                             onToggleFolder={onToggleFolder}
                             compactMode={compactMode}
@@ -242,6 +309,7 @@ function FileTree({
     onFileView,
     onFolderDelete,
     onNewFileInFolder,
+    onFileRename,
     expandedFolders,
     onToggleFolder,
     compactMode = false,
@@ -280,6 +348,7 @@ function FileTree({
                     onFileView={onFileView}
                     onFolderDelete={onFolderDelete}
                     onNewFileInFolder={onNewFileInFolder}
+                    onFileRename={onFileRename}
                     expandedFolders={currentExpandedFolders}
                     onToggleFolder={currentToggleFolder}
                     compactMode={compactMode}
@@ -297,6 +366,7 @@ export default function FileTreeComponent({
     onFileView,
     onFolderDelete,
     onNewFileInFolder,
+    onFileRename,
     expandedFolders,
     onToggleFolder,
     compactMode = false,
@@ -339,6 +409,7 @@ export default function FileTreeComponent({
                     onFileView={onFileView}
                     onFolderDelete={onFolderDelete}
                     onNewFileInFolder={onNewFileInFolder}
+                    onFileRename={onFileRename}
                     expandedFolders={currentExpandedFolders}
                     onToggleFolder={currentToggleFolder}
                     compactMode={compactMode}

@@ -9,6 +9,7 @@ import {
     useUpdateFile,
     useDeleteFile,
     useDeleteFolder,
+    useRenameFolder,
 } from '@/hooks/useFiles';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,6 +38,7 @@ export default function ProjectIDEPage() {
     const updateFileMutation = useUpdateFile();
     const deleteFileMutation = useDeleteFile();
     const deleteFolderMutation = useDeleteFolder();
+    const renameFolderMutation = useRenameFolder();
 
     const handleFileCreate = async (
         path: string,
@@ -72,6 +74,21 @@ export default function ProjectIDEPage() {
         }
     };
 
+    const handleFileRename = async (fileId: string, newPath: string) => {
+        try {
+            await updateFileMutation.mutateAsync({
+                projectId,
+                fileId,
+                data: { path: newPath },
+            });
+            toast.success('파일 이름이 변경되었습니다.');
+        } catch (error) {
+            console.error('파일 이름 변경 실패:', error);
+            toast.error('파일 이름 변경 중 오류가 발생했습니다.');
+            throw error;
+        }
+    };
+
     const handleFileDelete = async (fileId: string) => {
         try {
             await deleteFileMutation.mutateAsync({ projectId, fileId });
@@ -90,6 +107,24 @@ export default function ProjectIDEPage() {
         } catch (error) {
             console.error('폴더 삭제 실패:', error);
             toast.error('폴더 삭제 중 오류가 발생했습니다.');
+            throw error;
+        }
+    };
+
+    const handleFolderRename = async (
+        oldFolderPath: string,
+        newFolderPath: string,
+    ) => {
+        try {
+            await renameFolderMutation.mutateAsync({
+                projectId,
+                oldFolderPath,
+                newFolderPath,
+            });
+            toast.success('폴더 이름이 변경되었습니다.');
+        } catch (error) {
+            console.error('폴더 이름 변경 실패:', error);
+            toast.error('폴더 이름 변경 중 오류가 발생했습니다.');
             throw error;
         }
     };
@@ -170,6 +205,8 @@ export default function ProjectIDEPage() {
                         onFileUpdate={handleFileUpdate}
                         onFileDelete={handleFileDelete}
                         onFolderDelete={handleFolderDelete}
+                        onFileRename={handleFileRename}
+                        onFolderRename={handleFolderRename}
                     />
                 ) : (
                     <div className="h-full flex items-center justify-center">
