@@ -70,9 +70,7 @@ export const useAiReviewSocket = (): UseAiReviewSocketReturn => {
             setIsConnected(false);
         };
 
-        const handleAuthSuccess = (): void => {
-            console.log('AI Review socket authenticated');
-        };
+        const handleAuthSuccess = (): void => {};
 
         const handleAuthError = (): void => {
             setIsConnected(false);
@@ -80,17 +78,14 @@ export const useAiReviewSocket = (): UseAiReviewSocketReturn => {
         };
 
         const handleReviewProgress = (progress: ReviewProgress): void => {
-            console.log('WebSocket: review:progress received:', progress);
             setCurrentProgress(progress);
             setLastError(null); // Clear any previous errors
         };
 
         const handleReviewCompleted = (result: ReviewResult): void => {
-            console.log('WebSocket: review:completed received:', result);
             setLastResult(result);
             setCurrentProgress(null);
             setLastError(null);
-            console.log('WebSocket: state updated after completion');
         };
 
         const handleReviewError = (error: ReviewError): void => {
@@ -98,10 +93,9 @@ export const useAiReviewSocket = (): UseAiReviewSocketReturn => {
             setCurrentProgress(null);
         };
 
-        const handleReviewCancelled = (data: { requestId: string }): void => {
+        const handleReviewCancelled = (_data: { requestId: string }): void => {
             setCurrentProgress(null);
             setLastError(null);
-            console.log('Review cancelled:', data.requestId);
         };
 
         // Register event handlers

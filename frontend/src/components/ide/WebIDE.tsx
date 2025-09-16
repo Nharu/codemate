@@ -29,14 +29,15 @@ import { NewFileModal } from '@/components/ui/new-file-modal';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
 import { useIdeSessionSocket } from '@/hooks/useIdeSessionSocket';
-import {
-    useAiReviewSocket,
-    type ReviewProgress,
-    type ReviewError,
-} from '@/hooks/useAiReviewSocket';
 import CodeReviewPanel, {
     type CodeReviewResult,
 } from '@/components/ai/CodeReviewPanel';
+import {
+    useFileReviewState,
+    useCodeReviewActions,
+    useCodeReviewStore,
+} from '@/store/codeReviewStore';
+import { useCodeReviewWithSocket } from '@/hooks/useCodeReviewWithSocket';
 import apiClient from '@/lib/api-client';
 import type { editor } from 'monaco-editor';
 
@@ -101,68 +102,41 @@ export default function WebIDE({
     const [reviewingTabPath, setReviewingTabPath] = useState<string | null>(
         null,
     );
-    const [currentReviewRequestId, setCurrentReviewRequestId] = useState<
-        string | null
-    >(null);
-    // File-specific review states
-    const [fileReviewStates, setFileReviewStates] = useState<
-        Record<
-            string,
-            {
-                result?: CodeReviewResult;
-                progress?: ReviewProgress;
-                error?: ReviewError;
-            }
-        >
-    >({});
+    // Legacy state variables are no longer needed with Zustand
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
-    // AI Code Review Socket
+    // Zustand store for code review state management
     const {
         isConnected: isReviewSocketConnected,
-        startReview,
-        cancelReview,
-        currentProgress: globalProgress,
-        lastResult: globalResult,
-        lastError: globalError,
-        clearState: clearGlobalReviewState,
-    } = useAiReviewSocket();
+        startReview: socketStartReview,
+        cancelReview: socketCancelReview,
+    } = useCodeReviewWithSocket();
 
-    // File-specific review state management
-    const updateFileReviewState = useCallback(
-        (
-            filePath: string,
-            updates: {
-                result?: CodeReviewResult;
-                progress?: ReviewProgress;
-                error?: ReviewError;
-            },
-        ) => {
-            setFileReviewStates((prev) => ({
-                ...prev,
-                [filePath]: {
-                    ...prev[filePath],
-                    ...updates,
-                },
-            }));
-        },
-        [],
+    const {
+        startReview: storeStartReview,
+        setReviewResult,
+        cancelReview: storeCancelReview,
+    } = useCodeReviewActions();
+
+    // Get active tab first
+    const activeTab = openTabs.find((tab) => tab.id === activeTabId);
+
+    // Get current file's review state from Zustand store
+    const {
+        result: currentFileReview,
+        progress: currentProgress,
+        error: reviewError,
+    } = useFileReviewState(activeTab?.path);
+
+    // Get current reviewing info to prevent loading previous review during active review
+    const currentReviewingFile = useCodeReviewStore(
+        (state) => state.currentReviewingFile,
+    );
+    const currentRequestId = useCodeReviewStore(
+        (state) => state.currentRequestId,
     );
 
-    const getFileReviewState = useCallback(
-        (filePath: string) => {
-            return fileReviewStates[filePath] || {};
-        },
-        [fileReviewStates],
-    );
-
-    const clearFileReviewState = useCallback((filePath: string) => {
-        setFileReviewStates((prev) => {
-            const newState = { ...prev };
-            delete newState[filePath];
-            return newState;
-        });
-    }, []);
+    // State management is now handled by Zustand store
 
     // IDE Session socket
     const {
@@ -172,136 +146,9 @@ export default function WebIDE({
         extendSession,
     } = useIdeSessionSocket(projectId);
 
-    const activeTab = openTabs.find((tab) => tab.id === activeTabId);
+    // Current file review state is automatically managed by Zustand
 
-    // Get current file review state
-    const currentFileReviewState = activeTab
-        ? getFileReviewState(activeTab.path)
-        : {};
-    const currentFileReview = currentFileReviewState.result;
-    const currentProgress = currentFileReviewState.progress;
-    const reviewError = currentFileReviewState.error;
-
-    // Force UI update when file review states change
-    useEffect(() => {
-        console.log('Current file review state changed:', {
-            activeTabPath: activeTab?.path,
-            currentFileReviewState,
-            currentFileReview: !!currentFileReview,
-            currentProgress: !!currentProgress,
-            reviewError: !!reviewError,
-        });
-    }, [
-        activeTab?.path,
-        currentFileReview,
-        currentProgress,
-        reviewError,
-        fileReviewStates,
-        currentFileReviewState,
-    ]);
-
-    // Sync global WebSocket events to file-specific states
-    useEffect(() => {
-        console.log('globalProgress effect triggered:', {
-            globalProgress,
-            reviewingTabPath,
-            currentReviewRequestId,
-        });
-        if (
-            globalProgress &&
-            currentReviewRequestId &&
-            globalProgress.requestId === currentReviewRequestId
-        ) {
-            console.log(
-                'Processing globalProgress for requestId:',
-                currentReviewRequestId,
-                'tab:',
-                reviewingTabPath,
-                globalProgress,
-            );
-            const targetFilePath = reviewingTabPath || activeTab?.path;
-            if (targetFilePath) {
-                updateFileReviewState(targetFilePath, {
-                    progress: globalProgress,
-                    error: undefined,
-                });
-            }
-        }
-    }, [
-        globalProgress,
-        reviewingTabPath,
-        currentReviewRequestId,
-        updateFileReviewState,
-        activeTab,
-    ]);
-
-    useEffect(() => {
-        console.log('globalResult effect triggered:', {
-            globalResult,
-            reviewingTabPath,
-            currentReviewRequestId,
-        });
-        if (
-            globalResult &&
-            currentReviewRequestId &&
-            globalResult.requestId === currentReviewRequestId
-        ) {
-            console.log(
-                'Processing globalResult for requestId:',
-                currentReviewRequestId,
-                'tab:',
-                reviewingTabPath,
-                globalResult,
-            );
-
-            // Find the file path that corresponds to this request
-            // Use reviewingTabPath if available, otherwise try to match with current active tab
-            const targetFilePath = reviewingTabPath || activeTab?.path;
-
-            if (targetFilePath) {
-                updateFileReviewState(targetFilePath, {
-                    result: globalResult.result,
-                    progress: undefined,
-                    error: undefined,
-                });
-                console.log('Updated file review state for:', targetFilePath);
-            }
-
-            // Clear tracking
-            setReviewingTabPath(null);
-            setCurrentReviewRequestId(null);
-        }
-    }, [
-        globalResult,
-        reviewingTabPath,
-        currentReviewRequestId,
-        updateFileReviewState,
-        activeTab,
-    ]);
-
-    useEffect(() => {
-        if (
-            globalError &&
-            currentReviewRequestId &&
-            globalError.requestId === currentReviewRequestId
-        ) {
-            const targetFilePath = reviewingTabPath || activeTab?.path;
-            if (targetFilePath) {
-                updateFileReviewState(targetFilePath, {
-                    error: globalError,
-                    progress: undefined,
-                });
-            }
-            setReviewingTabPath(null); // Clear the tracking
-            setCurrentReviewRequestId(null);
-        }
-    }, [
-        globalError,
-        reviewingTabPath,
-        currentReviewRequestId,
-        updateFileReviewState,
-        activeTab,
-    ]);
+    // WebSocket sync is now handled automatically by useCodeReviewWithSocket hook
 
     const getLanguageFromPath = useCallback((path: string): string => {
         const ext = path.split('.').pop()?.toLowerCase();
@@ -703,11 +550,10 @@ export default function WebIDE({
 
         const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-        // Track which tab is being reviewed
-        setReviewingTabPath(activeTab.path);
-        setCurrentReviewRequestId(requestId);
+        // Start review using Zustand store
+        storeStartReview(activeTab.path, requestId);
 
-        startReview({
+        socketStartReview({
             requestId,
             projectId,
             code: activeTab.content,
@@ -717,19 +563,13 @@ export default function WebIDE({
         });
 
         setIsReviewPanelOpen(true);
-        // Clear the file-specific state for this file
-        if (activeTab) {
-            clearFileReviewState(activeTab.path);
-        }
-        clearGlobalReviewState(); // Clear global state too
     }, [
         activeTab,
         projectId,
-        startReview,
+        socketStartReview,
+        storeStartReview,
         isReviewSocketConnected,
         getLanguageFromPath,
-        clearFileReviewState,
-        clearGlobalReviewState,
     ]);
 
     // Update editor decorations when review results change
@@ -1173,25 +1013,15 @@ export default function WebIDE({
                 return;
             }
 
-            // If we already have review state for this file, apply decorations and return
-            if (currentFileReviewState.result) {
-                // Auto-apply decorations when switching to file with existing results
-                await applyReviewDecorations(
-                    currentFileReviewState.result,
-                    activeTab,
-                );
+            // Don't load previous review if current file is being reviewed
+            if (currentReviewingFile === activeTab.path && currentRequestId) {
                 return;
             }
 
-            // Check if this file is currently being reviewed (and results might be available globally)
-            if (reviewingTabPath === activeTab.path && globalResult?.result) {
-                // Apply the global result to this file's state
-                updateFileReviewState(activeTab.path, {
-                    result: globalResult.result,
-                    progress: undefined,
-                    error: undefined,
-                });
-                await applyReviewDecorations(globalResult.result, activeTab);
+            // If we already have review state for this file, apply decorations and return
+            if (currentFileReview) {
+                // Auto-apply decorations when switching to file with existing results
+                await applyReviewDecorations(currentFileReview, activeTab);
                 return;
             }
 
@@ -1204,9 +1034,9 @@ export default function WebIDE({
                 });
 
                 if (response.data?.reviewResult) {
-                    updateFileReviewState(activeTab.path, {
-                        result: response.data.reviewResult,
-                    });
+                    // Store the loaded review result in Zustand store
+                    setReviewResult(activeTab.path, response.data.reviewResult);
+
                     // Auto-apply decorations when review data is loaded
                     await applyReviewDecorations(
                         response.data.reviewResult,
@@ -1223,10 +1053,10 @@ export default function WebIDE({
         activeTab,
         projectId,
         applyReviewDecorations,
-        currentFileReviewState.result,
-        updateFileReviewState,
-        reviewingTabPath,
-        globalResult,
+        currentFileReview,
+        setReviewResult,
+        currentReviewingFile,
+        currentRequestId,
     ]);
 
     return (
@@ -1583,15 +1413,11 @@ export default function WebIDE({
                 onCancel={
                     currentProgress
                         ? () => {
-                              cancelReview(currentProgress.requestId);
-                              // Clear the file-specific progress state when cancelled
+                              socketCancelReview(currentProgress.requestId);
+                              // Cancel in store
                               if (activeTab) {
-                                  updateFileReviewState(activeTab.path, {
-                                      progress: undefined,
-                                      error: undefined,
-                                  });
+                                  storeCancelReview(activeTab.path);
                               }
-                              setReviewingTabPath(null);
                           }
                         : undefined
                 }
