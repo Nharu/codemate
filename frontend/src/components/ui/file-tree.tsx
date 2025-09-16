@@ -8,7 +8,6 @@ import {
     Folder,
     FolderOpen,
     MoreVertical,
-    Edit3,
     Trash2,
     Eye,
     Code2,
@@ -29,7 +28,6 @@ import type { FileNode } from '@/lib/file-tree';
 interface FileTreeProps {
     tree: FileNode[];
     onFileClick?: (file: FileNode) => void;
-    onFileEdit?: (file: FileNode) => void;
     onFileDelete?: (file: FileNode) => void;
     onFileView?: (file: FileNode) => void;
     onFolderDelete?: (folder: FileNode) => void;
@@ -46,7 +44,6 @@ interface FileTreeNodeProps {
     isExpanded: boolean;
     onToggle: () => void;
     onFileClick?: (file: FileNode) => void;
-    onFileEdit?: (file: FileNode) => void;
     onFileDelete?: (file: FileNode) => void;
     onFileView?: (file: FileNode) => void;
     onFolderDelete?: (folder: FileNode) => void;
@@ -63,7 +60,6 @@ function FileTreeNode({
     isExpanded,
     onToggle,
     onFileClick,
-    onFileEdit,
     onFileDelete,
     onFileView,
     onFolderDelete,
@@ -185,8 +181,7 @@ function FileTreeNode({
                     )}
                 </div>
 
-                {((node.type === 'file' &&
-                    (onFileEdit || onFileDelete || onFileView)) ||
+                {((node.type === 'file' && (onFileDelete || onFileView)) ||
                     (node.type === 'folder' && onFolderDelete)) && (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -207,14 +202,6 @@ function FileTreeNode({
                                         >
                                             <Eye className="mr-2 h-4 w-4 flex-shrink-0" />
                                             보기
-                                        </DropdownMenuItem>
-                                    )}
-                                    {onFileEdit && (
-                                        <DropdownMenuItem
-                                            onClick={() => onFileEdit(node)}
-                                        >
-                                            <Edit3 className="mr-2 h-4 w-4 flex-shrink-0" />
-                                            편집
                                         </DropdownMenuItem>
                                     )}
                                     {onFileRename && (
@@ -280,7 +267,6 @@ function FileTreeNode({
                             tree={node.children}
                             level={level + 1}
                             onFileClick={onFileClick}
-                            onFileEdit={onFileEdit}
                             onFileDelete={onFileDelete}
                             onFileView={onFileView}
                             onFolderDelete={onFolderDelete}
@@ -304,7 +290,6 @@ function FileTree({
     tree,
     level = 0,
     onFileClick,
-    onFileEdit,
     onFileDelete,
     onFileView,
     onFolderDelete,
@@ -343,7 +328,6 @@ function FileTree({
                     isExpanded={currentExpandedFolders.has(node.path)}
                     onToggle={() => currentToggleFolder(node.path)}
                     onFileClick={onFileClick}
-                    onFileEdit={onFileEdit}
                     onFileDelete={onFileDelete}
                     onFileView={onFileView}
                     onFolderDelete={onFolderDelete}
@@ -361,7 +345,6 @@ function FileTree({
 export default function FileTreeComponent({
     tree,
     onFileClick,
-    onFileEdit,
     onFileDelete,
     onFileView,
     onFolderDelete,
@@ -404,7 +387,6 @@ export default function FileTreeComponent({
                     isExpanded={currentExpandedFolders.has(node.path)}
                     onToggle={() => toggleFolder(node.path)}
                     onFileClick={onFileClick}
-                    onFileEdit={onFileEdit}
                     onFileDelete={onFileDelete}
                     onFileView={onFileView}
                     onFolderDelete={onFolderDelete}

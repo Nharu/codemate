@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Editor } from '@monaco-editor/react';
 import { File, X, Save, Plus, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -55,6 +56,8 @@ export default function WebIDE({
     onFolderDelete,
     onFolderRename,
 }: WebIDEProps) {
+    const searchParams = useSearchParams();
+    const router = useRouter();
     const [openTabs, setOpenTabs] = useState<OpenTab[]>([]);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -180,31 +183,35 @@ export default function WebIDE({
         [openTabs],
     );
 
-    const openFile = (file: FileNode) => {
-        const existingTab = openTabs.find((tab) => tab.id === file.id);
-        if (existingTab) {
+    const openFile = useCallback(
+        (file: FileNode) => {
+            const existingTab = openTabs.find((tab) => tab.id === file.id);
+            if (existingTab) {
+                setActiveTabId(file.id);
+                return;
+            }
+
+            const projectFile = files.find((f) => f.id === file.id);
+            if (!projectFile) return;
+
+            // Expand folders for the opened file path
+            expandFoldersForPath(file.path);
+
+            const newTab: OpenTab = {
+                id: file.id,
+                name: file.name,
+                path: file.path,
+                content: projectFile.content || '',
+                language:
+                    projectFile.language || getLanguageFromPath(file.path),
+                isDirty: false,
+            };
+
+            setOpenTabs((prev) => [...prev, newTab]);
             setActiveTabId(file.id);
-            return;
-        }
-
-        const projectFile = files.find((f) => f.id === file.id);
-        if (!projectFile) return;
-
-        // Expand folders for the opened file path
-        expandFoldersForPath(file.path);
-
-        const newTab: OpenTab = {
-            id: file.id,
-            name: file.name,
-            path: file.path,
-            content: projectFile.content || '',
-            language: projectFile.language || getLanguageFromPath(file.path),
-            isDirty: false,
-        };
-
-        setOpenTabs((prev) => [...prev, newTab]);
-        setActiveTabId(file.id);
-    };
+        },
+        [openTabs, files, expandFoldersForPath, getLanguageFromPath],
+    );
 
     const closeTab = (tabId: string) => {
         const tab = openTabs.find((t) => t.id === tabId);
@@ -610,6 +617,52 @@ export default function WebIDE({
         sidebarWidth,
         isSessionLoaded,
         updateSession,
+    ]);
+
+    // Auto-open file from URL query parameter
+    useEffect(() => {
+        const fileId = searchParams.get('file');
+        if (fileId && files.length > 0 && isSessionLoaded) {
+            const targetFile = files.find((file) => file.id === fileId);
+            if (targetFile) {
+                // Check if file is already open
+                const existingTab = openTabs.find((tab) => tab.id === fileId);
+                if (!existingTab) {
+                    // Convert ProjectFile to FileNode format
+                    const fileNode: FileNode = {
+                        id: targetFile.id,
+                        name:
+                            targetFile.path.split('/').pop() || targetFile.path,
+                        path: targetFile.path,
+                        type: 'file',
+                        children: [],
+                        size: targetFile.size,
+                        language: targetFile.language,
+                        updated_at: targetFile.updated_at,
+                    };
+                    openFile(fileNode);
+                }
+                // Set as active tab if not already active
+                if (activeTabId !== fileId) {
+                    setActiveTabId(fileId);
+                }
+
+                // Clear the file parameter from URL to prevent repeated opening
+                const newUrl = new URL(window.location.href);
+                newUrl.searchParams.delete('file');
+                router.replace(newUrl.pathname + newUrl.search, {
+                    scroll: false,
+                });
+            }
+        }
+    }, [
+        searchParams,
+        files,
+        isSessionLoaded,
+        openTabs,
+        activeTabId,
+        openFile,
+        router,
     ]);
 
     // Extend session TTL every 5 minutes

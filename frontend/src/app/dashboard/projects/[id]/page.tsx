@@ -5,16 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import {
-    ArrowLeft,
-    Plus,
-    File,
-    Edit3,
-    Eye,
-    Lock,
-    Upload,
-    Code,
-} from 'lucide-react';
+import { ArrowLeft, Plus, File, Eye, Lock, Upload, Code } from 'lucide-react';
 import { useProject } from '@/hooks/useProjects';
 import {
     useProjectFiles,
@@ -156,11 +147,7 @@ export default function ProjectDetailPage() {
     };
 
     const handleFileClick = (file: FileNode) => {
-        router.push(`/dashboard/projects/${projectId}/files/${file.id}`);
-    };
-
-    const handleFileEdit = (file: FileNode) => {
-        router.push(`/dashboard/projects/${projectId}/files/${file.id}/edit`);
+        router.push(`/dashboard/projects/${projectId}/ide?file=${file.id}`);
     };
 
     const handleFileView = (file: FileNode) => {
@@ -323,7 +310,7 @@ export default function ProjectDetailPage() {
                                     ).toLocaleDateString()}
                                 </p>
                             </div>
-                            <div className="flex space-x-2">
+                            <div>
                                 <Button
                                     onClick={() =>
                                         router.push(
@@ -333,17 +320,6 @@ export default function ProjectDetailPage() {
                                 >
                                     <Code className="mr-2 h-4 w-4" />
                                     IDE 열기
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    onClick={() =>
-                                        router.push(
-                                            `/dashboard/projects/${projectId}/edit`,
-                                        )
-                                    }
-                                >
-                                    <Edit3 className="mr-2 h-4 w-4" />
-                                    편집
                                 </Button>
                             </div>
                         </div>
@@ -536,7 +512,6 @@ export default function ProjectDetailPage() {
                                     })),
                                 )}
                                 onFileClick={handleFileClick}
-                                onFileEdit={handleFileEdit}
                                 onFileView={handleFileView}
                                 onFileDelete={handleFileDelete}
                                 onFolderDelete={handleFolderDelete}
