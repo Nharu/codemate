@@ -187,7 +187,7 @@ export default function CodeReviewPanel({
 
     return (
         <div
-            className="fixed inset-y-0 right-0 bg-white border-l shadow-lg z-50 flex flex-col relative"
+            className="inset-y-0 right-0 bg-white border-l shadow-lg z-50 flex flex-col relative"
             style={{ width: panelWidth }}
         >
             {/* Resize Handle */}

@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import Header from '@/components/layout/Header';
 import WebIDE from '@/components/ide/WebIDE';
+import { CollaborationProvider } from '@/contexts/CollaborationContext';
 import { toast } from 'sonner';
 
 export default function ProjectIDEPage() {
@@ -198,16 +199,18 @@ export default function ProjectIDEPage() {
             {/* IDE Container */}
             <div className="flex-1 overflow-hidden">
                 {files ? (
-                    <WebIDE
-                        projectId={projectId}
-                        files={files}
-                        onFileCreate={handleFileCreate}
-                        onFileUpdate={handleFileUpdate}
-                        onFileDelete={handleFileDelete}
-                        onFolderDelete={handleFolderDelete}
-                        onFileRename={handleFileRename}
-                        onFolderRename={handleFolderRename}
-                    />
+                    <CollaborationProvider projectId={projectId}>
+                        <WebIDE
+                            projectId={projectId}
+                            files={files}
+                            onFileCreate={handleFileCreate}
+                            onFileUpdate={handleFileUpdate}
+                            onFileDelete={handleFileDelete}
+                            onFolderDelete={handleFolderDelete}
+                            onFileRename={handleFileRename}
+                            onFolderRename={handleFolderRename}
+                        />
+                    </CollaborationProvider>
                 ) : (
                     <div className="h-full flex items-center justify-center">
                         <div className="text-center">

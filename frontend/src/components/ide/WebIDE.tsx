@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { useCollaboration } from '@/contexts/CollaborationContext';
 
 const Editor = dynamic(
     () =>
@@ -16,7 +17,7 @@ const Editor = dynamic(
         ),
     },
 );
-import { File, X, Save, Plus, FolderOpen, Sparkles } from 'lucide-react';
+import { File, X, Save, Plus, FolderOpen, Sparkles, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -102,7 +103,7 @@ export default function WebIDE({
     const [reviewingTabPath, setReviewingTabPath] = useState<string | null>(
         null,
     );
-    // Legacy state variables are no longer needed with Zustand
+
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
     // Zustand store for code review state management
@@ -146,9 +147,43 @@ export default function WebIDE({
         extendSession,
     } = useIdeSessionSocket(projectId);
 
-    // Current file review state is automatically managed by Zustand
+    // Use CollaborationContext
+    const {
+        isConnecting,
+        isCollaborationEnabled,
+        connectedUsers,
+        currentRoomId,
+        joinRoom,
+        startCollaboration,
+        stopCollaboration,
+    } = useCollaboration();
 
-    // WebSocket sync is now handled automatically by useCodeReviewWithSocket hook
+    // Collaboration toggle using CollaborationContext
+    const toggleCollaboration = useCallback(() => {
+        if (isCollaborationEnabled) {
+            stopCollaboration();
+        } else {
+            startCollaboration();
+        }
+    }, [isCollaborationEnabled, startCollaboration, stopCollaboration]);
+
+    // Auto-join room when activeTab changes
+    useEffect(() => {
+        if (activeTab && isCollaborationEnabled) {
+            const roomId = `project-${projectId}-file-${activeTab.id}`;
+            if (currentRoomId !== roomId) {
+                joinRoom(roomId);
+            }
+        }
+    }, [
+        activeTab?.id,
+        activeTab?.name,
+        activeTab,
+        isCollaborationEnabled,
+        currentRoomId,
+        projectId,
+        joinRoom,
+    ]);
 
     const getLanguageFromPath = useCallback((path: string): string => {
         const ext = path.split('.').pop()?.toLowerCase();
@@ -1006,6 +1041,13 @@ export default function WebIDE({
 
     // This is now handled by the global WebSocket sync effects above
 
+    // Cleanup collaboration on unmount
+    useEffect(() => {
+        return () => {
+            stopCollaboration();
+        };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Load previous review when switching files
     useEffect(() => {
         const loadPreviousReview = async () => {
@@ -1192,6 +1234,67 @@ export default function WebIDE({
                         )}
                     </div>
                     <div className="ml-auto flex items-center space-x-2">
+                        {/* Collaboration Controls */}
+                        <div className="flex items-center space-x-2">
+                            {isCollaborationEnabled &&
+                                connectedUsers.length > 0 && (
+                                    <div className="flex items-center space-x-1">
+                                        <Users className="h-4 w-4 text-green-600" />
+                                        <span className="text-sm text-green-600 font-medium">
+                                            {connectedUsers.length}명 접속
+                                        </span>
+                                        <div className="flex -space-x-1">
+                                            {connectedUsers
+                                                .slice(0, 3)
+                                                .map((user) => (
+                                                    <div
+                                                        key={user.userId}
+                                                        className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs border-2 border-white"
+                                                        title={user.username}
+                                                    >
+                                                        {user.username
+                                                            .charAt(0)
+                                                            .toUpperCase()}
+                                                    </div>
+                                                ))}
+                                            {connectedUsers.length > 3 && (
+                                                <div className="w-6 h-6 rounded-full bg-gray-400 flex items-center justify-center text-white text-xs border-2 border-white">
+                                                    +{connectedUsers.length - 3}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            {activeTab && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={toggleCollaboration}
+                                    className={cn(
+                                        isCollaborationEnabled
+                                            ? 'bg-green-100 border-green-300 text-green-700 hover:bg-green-200'
+                                            : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200',
+                                    )}
+                                >
+                                    {isCollaborationEnabled ? (
+                                        <>
+                                            <Users className="h-4 w-4 mr-1" />
+                                            협업 중 ({connectedUsers.length})
+                                        </>
+                                    ) : isConnecting ? (
+                                        <>
+                                            <Users className="h-4 w-4 mr-1" />
+                                            연결 중...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Users className="h-4 w-4 mr-1" />
+                                            협업 시작
+                                        </>
+                                    )}
+                                </Button>
+                            )}
+                        </div>
                         {activeTab && (
                             <Button
                                 variant="outline"
@@ -1302,8 +1405,78 @@ export default function WebIDE({
                                     language={activeTab.language}
                                     value={activeTab.content}
                                     onChange={handleEditorChange}
-                                    onMount={(editor) => {
+                                    onMount={async (editor) => {
                                         editorRef.current = editor;
+
+                                        // Import monaco for types
+                                        const _monaco = await import(
+                                            'monaco-editor'
+                                        );
+
+                                        // Add CSS for collaboration cursors
+                                        const style =
+                                            document.createElement('style');
+                                        style.textContent = `
+                                            .collaboration-cursor {
+                                                position: absolute;
+                                                width: 2px;
+                                                background-color: #3b82f6;
+                                                z-index: 1000;
+                                                pointer-events: none;
+                                            }
+
+                                            .collaboration-cursor::after {
+                                                content: attr(data-username);
+                                                position: absolute;
+                                                top: -20px;
+                                                left: 0;
+                                                background-color: #3b82f6;
+                                                color: white;
+                                                padding: 2px 6px;
+                                                border-radius: 3px;
+                                                font-size: 11px;
+                                                white-space: nowrap;
+                                                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                                            }
+
+                                            .collaboration-selection {
+                                                background-color: rgba(59, 130, 246, 0.2);
+                                                position: absolute;
+                                                pointer-events: none;
+                                                z-index: 999;
+                                            }
+                                        `;
+                                        document.head.appendChild(style);
+
+                                        // Store decorations for cleanup
+                                        const currentDecorations: string[] = [];
+
+                                        // TODO: Setup collaboration cursor rendering
+                                        // This will be implemented in CollaborationContext
+                                        const renderCollaborationCursors =
+                                            () => {
+                                                // Disabled for now - will be implemented in context
+                                            };
+
+                                        // Re-render cursors when users change
+                                        const renderCursorsInterval =
+                                            setInterval(
+                                                renderCollaborationCursors,
+                                                100,
+                                            );
+
+                                        // Cleanup on unmount
+                                        editor.onDidDispose(() => {
+                                            clearInterval(
+                                                renderCursorsInterval,
+                                            );
+                                            style.remove();
+                                            // Clear remaining decorations
+                                            editor.deltaDecorations(
+                                                currentDecorations,
+                                                [],
+                                            );
+                                        });
                                     }}
                                     options={{
                                         minimap: { enabled: true },

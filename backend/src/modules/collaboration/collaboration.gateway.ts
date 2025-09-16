@@ -61,16 +61,24 @@ export class CollaborationGateway
     async handleConnection(client: SocketWithUser): Promise<void> {
         try {
             const token = client.handshake.auth.token as string;
+            this.logger.log(
+                `Connection attempt with token: ${token ? 'Token present' : 'No token'}`,
+            );
+
             if (!token) {
+                this.logger.error('No token provided');
                 client.disconnect();
                 return;
             }
 
             const payload =
                 await this.jwtService.verifyAsync<JwtPayload>(token);
+            this.logger.log(`Token verified for user: ${payload.sub}`);
+
             const userEntity = await this.usersService.findById(payload.sub);
 
             if (!userEntity) {
+                this.logger.error(`User not found: ${payload.sub}`);
                 client.disconnect();
                 return;
             }
@@ -84,7 +92,9 @@ export class CollaborationGateway
             this.userSockets.set(payload.sub, client);
             client.data.user = user;
 
-            this.logger.log(`User connected: ${user.username} (${client.id})`);
+            this.logger.log(
+                `User connected successfully: ${user.username} (${client.id})`,
+            );
         } catch (error) {
             this.logger.error('Authentication failed', error);
             client.disconnect();
@@ -108,7 +118,10 @@ export class CollaborationGateway
         const { roomId } = data;
         const user = client.data.user;
 
+        this.logger.log(`Join room request for: ${roomId}`);
+
         if (!user) {
+            this.logger.error('Join room failed: User not authenticated');
             return { error: 'User not authenticated' };
         }
 
@@ -116,6 +129,7 @@ export class CollaborationGateway
 
         if (!this.rooms.has(roomId)) {
             this.rooms.set(roomId, { id: roomId, users: [] });
+            this.logger.log(`Created new room: ${roomId}`);
         }
 
         const room = this.rooms.get(roomId)!;
@@ -125,8 +139,10 @@ export class CollaborationGateway
 
         if (existingUserIndex === -1) {
             room.users.push(user);
+            this.logger.log(`Added user ${user.username} to room ${roomId}`);
         } else {
             room.users[existingUserIndex] = user;
+            this.logger.log(`Updated user ${user.username} in room ${roomId}`);
         }
 
         this.server.to(roomId).emit('user-joined', {
@@ -134,7 +150,9 @@ export class CollaborationGateway
             users: room.users,
         });
 
-        this.logger.log(`User ${user.username} joined room ${roomId}`);
+        this.logger.log(
+            `User ${user.username} successfully joined room ${roomId} (${room.users.length} users total)`,
+        );
 
         return { success: true, users: room.users };
     }

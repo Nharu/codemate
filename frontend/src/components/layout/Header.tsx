@@ -38,12 +38,6 @@ export default function Header() {
                             >
                                 프로젝트
                             </Link>
-                            <Link
-                                href="/collaborate"
-                                className="text-gray-700 hover:text-blue-600 transition-colors font-medium"
-                            >
-                                협업
-                            </Link>
                         </nav>
                     )}
 
