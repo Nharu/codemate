@@ -120,3 +120,29 @@
         @apply bg-background text-foreground;
     }
 }
+
+/* AI Review Monaco Editor Decorations */
+.ai-review-decoration-critical {
+    border-bottom: 2px solid #dc2626;
+    background-color: rgba(220, 38, 38, 0.1);
+}
+
+.ai-review-decoration-high {
+    border-bottom: 2px solid #ef4444;
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+.ai-review-decoration-medium {
+    border-bottom: 2px solid #f59e0b;
+    background-color: rgba(245, 158, 11, 0.1);
+}
+
+.ai-review-decoration-low {
+    border-bottom: 2px solid #eab308;
+    background-color: rgba(234, 179, 8, 0.1);
+}
+
+.ai-review-decoration-info {
+    border-bottom: 2px solid #3b82f6;
+    background-color: rgba(59, 130, 246, 0.1);
+}

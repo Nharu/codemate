@@ -2,8 +2,21 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Editor } from '@monaco-editor/react';
-import { File, X, Save, Plus, FolderOpen } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+const Editor = dynamic(
+    () =>
+        import('@monaco-editor/react').then((mod) => ({ default: mod.Editor })),
+    {
+        ssr: false,
+        loading: () => (
+            <div className="flex items-center justify-center h-full">
+                <div className="text-gray-500">에디터 로딩 중...</div>
+            </div>
+        ),
+    },
+);
+import { File, X, Save, Plus, FolderOpen, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -16,6 +29,11 @@ import { NewFileModal } from '@/components/ui/new-file-modal';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
 import { useIdeSessionSocket } from '@/hooks/useIdeSessionSocket';
+import { useAiReviewSocket } from '@/hooks/useAiReviewSocket';
+import CodeReviewPanel, {
+    type CodeReviewResult,
+} from '@/components/ai/CodeReviewPanel';
+import apiClient from '@/lib/api-client';
 import type { editor } from 'monaco-editor';
 
 interface OpenTab {
@@ -75,7 +93,21 @@ export default function WebIDE({
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
         new Set(),
     );
+    const [isReviewPanelOpen, setIsReviewPanelOpen] = useState(false);
+    const [currentFileReview, setCurrentFileReview] =
+        useState<CodeReviewResult | null>(null);
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+
+    // AI Code Review Socket
+    const {
+        isConnected: isReviewSocketConnected,
+        startReview,
+        cancelReview,
+        currentProgress,
+        lastResult: reviewResult,
+        lastError: reviewError,
+        clearState: clearReviewState,
+    } = useAiReviewSocket();
 
     // IDE Session socket
     const {
@@ -337,6 +369,233 @@ export default function WebIDE({
         },
         [openTabs, activeTabId, onFileCreate, onFileUpdate],
     );
+
+    // Function to apply review decorations for a specific file
+    const applyReviewDecorations = useCallback(
+        async (reviewResult: CodeReviewResult, targetTab?: OpenTab) => {
+            if (!editorRef.current || !reviewResult) return;
+
+            const tab = targetTab || activeTab;
+            if (!tab) return;
+
+            const monaco = await import('monaco-editor');
+            const editor = editorRef.current;
+            const decorations: editor.IModelDeltaDecoration[] = [];
+            const markers: editor.IMarkerData[] = [];
+
+            // Convert review issues to Monaco decorations and markers
+            reviewResult.issues.forEach((issue) => {
+                const severity = {
+                    critical: monaco.MarkerSeverity.Error,
+                    high: monaco.MarkerSeverity.Error,
+                    medium: monaco.MarkerSeverity.Warning,
+                    low: monaco.MarkerSeverity.Warning,
+                    info: monaco.MarkerSeverity.Info,
+                }[issue.severity];
+
+                // Add marker for problems panel
+                markers.push({
+                    severity,
+                    startLineNumber: issue.line,
+                    startColumn: issue.column || 1,
+                    endLineNumber: issue.line,
+                    endColumn: issue.column ? issue.column + 1 : 2,
+                    message: `${issue.title}: ${issue.description}`,
+                });
+
+                // Add decoration for editor highlighting
+                const decorationClass = {
+                    critical: 'ai-review-decoration-critical',
+                    high: 'ai-review-decoration-high',
+                    medium: 'ai-review-decoration-medium',
+                    low: 'ai-review-decoration-low',
+                    info: 'ai-review-decoration-info',
+                }[issue.severity];
+
+                decorations.push({
+                    range: new monaco.Range(
+                        issue.line,
+                        issue.column || 1,
+                        issue.line,
+                        issue.column ? issue.column + 1 : 2,
+                    ),
+                    options: {
+                        className: decorationClass,
+                        hoverMessage: {
+                            value: `**${issue.title}**\n\n${issue.description}${issue.suggestion ? `\n\n💡 **제안사항:**\n${issue.suggestion}` : ''}`,
+                        },
+                        minimap: {
+                            color: {
+                                critical: '#ef4444',
+                                high: '#f97316',
+                                medium: '#eab308',
+                                low: '#3b82f6',
+                                info: '#06b6d4',
+                            }[issue.severity],
+                            position: monaco.editor.MinimapPosition.Inline,
+                        },
+                    },
+                });
+            });
+
+            // Apply decorations
+            const model = editor.getModel();
+            if (model) {
+                editor.deltaDecorations([], decorations);
+                monaco.editor.setModelMarkers(model, 'ai-review', markers);
+            }
+        },
+        [activeTab],
+    );
+
+    const handleOpenReviewPanel = useCallback(async () => {
+        // Just open the panel to show current progress or existing results
+        setIsReviewPanelOpen(true);
+
+        // Apply decorations if we have review results for current file
+        if (currentFileReview && activeTab) {
+            await applyReviewDecorations(currentFileReview, activeTab);
+        }
+    }, [currentFileReview, activeTab, applyReviewDecorations]);
+
+    const handleStartNewReview = useCallback(() => {
+        if (!activeTab) {
+            setAlertMessage('리뷰할 파일을 선택해주세요.');
+            setIsAlertModalOpen(true);
+            return;
+        }
+
+        if (!activeTab.content.trim()) {
+            setAlertMessage('빈 파일은 리뷰할 수 없습니다.');
+            setIsAlertModalOpen(true);
+            return;
+        }
+
+        if (!isReviewSocketConnected) {
+            setAlertMessage(
+                'AI 리뷰 서비스에 연결되지 않았습니다. 잠시 후 다시 시도해주세요.',
+            );
+            setIsAlertModalOpen(true);
+            return;
+        }
+
+        const language =
+            activeTab.language ||
+            getLanguageFromPath(activeTab.path) ||
+            'typescript';
+
+        const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        startReview({
+            requestId,
+            projectId,
+            code: activeTab.content,
+            language,
+            filePath: activeTab.path,
+            context: `Project: ${projectId}, File: ${activeTab.path}`,
+        });
+
+        setIsReviewPanelOpen(true);
+        clearReviewState(); // Clear previous state
+    }, [
+        activeTab,
+        projectId,
+        startReview,
+        isReviewSocketConnected,
+        getLanguageFromPath,
+        clearReviewState,
+    ]);
+
+    // Update editor decorations when review results change
+    useEffect(() => {
+        if (!editorRef.current || !currentFileReview || !activeTab) return;
+
+        const updateDecorations = async () => {
+            const monaco = await import('monaco-editor');
+            const editor = editorRef.current!;
+            const decorations: editor.IModelDeltaDecoration[] = [];
+            const markers: editor.IMarkerData[] = [];
+
+            // Convert review issues to Monaco decorations and markers
+            currentFileReview.issues.forEach((issue) => {
+                const severity = {
+                    critical: monaco.MarkerSeverity.Error,
+                    high: monaco.MarkerSeverity.Error,
+                    medium: monaco.MarkerSeverity.Warning,
+                    low: monaco.MarkerSeverity.Info,
+                    info: monaco.MarkerSeverity.Info,
+                }[issue.severity];
+
+                // Add marker for problems panel
+                markers.push({
+                    severity,
+                    startLineNumber: issue.line,
+                    startColumn: issue.column || 1,
+                    endLineNumber: issue.line,
+                    endColumn: issue.column
+                        ? issue.column + 1
+                        : Number.MAX_SAFE_INTEGER,
+                    message: `${issue.title}: ${issue.description}`,
+                    source: 'AI Review',
+                });
+
+                // Add decoration for inline display
+                const decorationClass = {
+                    critical: 'ai-review-decoration-critical',
+                    high: 'ai-review-decoration-high',
+                    medium: 'ai-review-decoration-medium',
+                    low: 'ai-review-decoration-low',
+                    info: 'ai-review-decoration-info',
+                }[issue.severity];
+
+                decorations.push({
+                    range: new monaco.Range(
+                        issue.line,
+                        issue.column || 1,
+                        issue.line,
+                        issue.column
+                            ? issue.column + 1
+                            : Number.MAX_SAFE_INTEGER,
+                    ),
+                    options: {
+                        className: decorationClass,
+                        hoverMessage: {
+                            value: `**${issue.title}** (${issue.severity})\n\n${issue.description}${
+                                issue.suggestion
+                                    ? `\n\n💡 **제안:** ${issue.suggestion}`
+                                    : ''
+                            }`,
+                            isTrusted: true,
+                        },
+                        minimap: {
+                            color:
+                                severity === monaco.MarkerSeverity.Error
+                                    ? '#ff0000'
+                                    : severity === monaco.MarkerSeverity.Warning
+                                      ? '#ff8c00'
+                                      : '#00bfff',
+                            position: monaco.editor.MinimapPosition.Inline,
+                        },
+                    },
+                });
+            });
+
+            // Apply decorations
+            const model = editor.getModel();
+            if (model) {
+                const decorationIds = editor.deltaDecorations([], decorations);
+                monaco.editor.setModelMarkers(model, 'ai-review', markers);
+
+                // Clean up decorations when component unmounts or review changes
+                return () => {
+                    editor.deltaDecorations(decorationIds, []);
+                    monaco.editor.setModelMarkers(model, 'ai-review', []);
+                };
+            }
+        };
+
+        updateDecorations();
+    }, [currentFileReview, activeTab]);
 
     const handleEditorChange = useCallback(
         (value: string | undefined) => {
@@ -648,11 +907,13 @@ export default function WebIDE({
                 }
 
                 // Clear the file parameter from URL to prevent repeated opening
-                const newUrl = new URL(window.location.href);
-                newUrl.searchParams.delete('file');
-                router.replace(newUrl.pathname + newUrl.search, {
-                    scroll: false,
-                });
+                if (typeof window !== 'undefined') {
+                    const newUrl = new URL(window.location.href);
+                    newUrl.searchParams.delete('file');
+                    router.replace(newUrl.pathname + newUrl.search, {
+                        scroll: false,
+                    });
+                }
             }
         }
     }, [
@@ -676,6 +937,48 @@ export default function WebIDE({
 
         return () => clearInterval(interval);
     }, [extendSession]);
+
+    // Save review result when completed
+    useEffect(() => {
+        if (reviewResult?.result && activeTab) {
+            setCurrentFileReview(reviewResult.result);
+        }
+    }, [reviewResult, activeTab]);
+
+    // Load previous review when switching files
+    useEffect(() => {
+        const loadPreviousReview = async () => {
+            if (!activeTab || !activeTab.path) {
+                setCurrentFileReview(null);
+                return;
+            }
+
+            try {
+                const response = await apiClient.get('/ai/review/latest', {
+                    params: {
+                        projectId,
+                        filePath: activeTab.path,
+                    },
+                });
+
+                if (response.data?.reviewResult) {
+                    setCurrentFileReview(response.data.reviewResult);
+                    // Auto-apply decorations when review data is loaded
+                    await applyReviewDecorations(
+                        response.data.reviewResult,
+                        activeTab,
+                    );
+                } else {
+                    setCurrentFileReview(null);
+                }
+            } catch {
+                // No previous review found or error - that's okay
+                setCurrentFileReview(null);
+            }
+        };
+
+        loadPreviousReview();
+    }, [activeTabId, projectId, applyReviewDecorations, activeTab]);
 
     return (
         <div className="flex h-full bg-gray-50">
@@ -809,6 +1112,19 @@ export default function WebIDE({
                             </>
                         )}
                     </div>
+                    <div className="ml-auto flex items-center space-x-2">
+                        {activeTab && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleOpenReviewPanel}
+                                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white border-none hover:from-blue-700 hover:to-purple-700"
+                            >
+                                <Sparkles className="h-4 w-4 mr-1" />
+                                AI 리뷰
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Tabs */}
@@ -823,7 +1139,52 @@ export default function WebIDE({
                                         ? 'bg-white border-b-2 border-blue-500'
                                         : 'hover:bg-gray-50',
                                 )}
-                                onClick={() => setActiveTabId(tab.id)}
+                                onClick={async () => {
+                                    // Clear AI review decorations when switching tabs
+                                    if (editorRef.current) {
+                                        const monaco = await import(
+                                            'monaco-editor'
+                                        );
+                                        const editor = editorRef.current;
+                                        const model = editor.getModel();
+                                        if (model) {
+                                            // Clear only AI review markers
+                                            monaco.editor.setModelMarkers(
+                                                model,
+                                                'ai-review',
+                                                [],
+                                            );
+
+                                            // Clear AI review decorations by finding and removing them
+                                            const allDecorations =
+                                                model.getAllDecorations();
+                                            const aiReviewDecorations =
+                                                allDecorations.filter((d) =>
+                                                    d.options.className?.includes(
+                                                        'ai-review-decoration',
+                                                    ),
+                                                );
+                                            if (
+                                                aiReviewDecorations.length > 0
+                                            ) {
+                                                editor.deltaDecorations(
+                                                    aiReviewDecorations.map(
+                                                        (d) => d.id,
+                                                    ),
+                                                    [],
+                                                );
+                                            }
+                                        }
+                                    }
+
+                                    // Clear current file review state immediately
+                                    setCurrentFileReview(null);
+
+                                    // Switch to new tab
+                                    setActiveTabId(tab.id);
+
+                                    // The existing useEffect will handle loading review data for the new file
+                                }}
                                 title={tab.path} // Show full path on hover
                             >
                                 <File className="h-4 w-4 mr-2 flex-shrink-0" />
@@ -951,6 +1312,25 @@ export default function WebIDE({
                 title="파일 저장 오류"
                 description={alertMessage}
                 confirmText="확인"
+            />
+
+            {/* AI Code Review Panel */}
+            <CodeReviewPanel
+                isOpen={isReviewPanelOpen}
+                onClose={() => {
+                    // Just close the panel, let review continue in background
+                    setIsReviewPanelOpen(false);
+                }}
+                result={currentFileReview || reviewResult?.result || null}
+                isLoading={!!currentProgress}
+                onRequestReview={handleStartNewReview}
+                currentProgress={currentProgress}
+                error={reviewError}
+                onCancel={
+                    currentProgress
+                        ? () => cancelReview(currentProgress.requestId)
+                        : undefined
+                }
             />
         </div>
     );

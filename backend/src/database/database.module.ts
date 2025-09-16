@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { User } from '../modules/users/user.entity';
 import { Project } from '../modules/projects/project.entity';
 import { File } from '../modules/projects/file.entity';
+import { AiReviewRecord } from '../modules/ai/entities/ai-review-record.entity';
 
 @Module({
     imports: [
@@ -16,7 +17,7 @@ import { File } from '../modules/projects/file.entity';
                 username: configService.get<string>('DATABASE_USERNAME'),
                 password: configService.get<string>('DATABASE_PASSWORD'),
                 database: configService.get<string>('DATABASE_NAME'),
-                entities: [User, Project, File],
+                entities: [User, Project, File, AiReviewRecord],
                 synchronize:
                     configService.get<string>('NODE_ENV') !== 'production',
                 logging: false,
