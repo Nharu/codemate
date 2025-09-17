@@ -69,7 +69,7 @@ export default function Header() {
                                     </div>
                                     <span className="text-sm font-medium text-gray-700 hidden sm:block">
                                         {profile?.username ||
-                                            session.user?.name}
+                                            session.user?.username}
                                     </span>
                                 </div>
 

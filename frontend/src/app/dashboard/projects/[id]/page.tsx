@@ -5,7 +5,17 @@ import { useParams, useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Plus, File, Eye, Lock, Upload, Code } from 'lucide-react';
+import {
+    ArrowLeft,
+    Plus,
+    File,
+    Eye,
+    Lock,
+    Upload,
+    Code,
+    Users,
+    UserPlus,
+} from 'lucide-react';
 import { useProject } from '@/hooks/useProjects';
 import {
     useProjectFiles,
@@ -52,6 +62,9 @@ import FileTreeComponent from '@/components/ui/file-tree';
 import { buildFileTree, type FileNode } from '@/lib/file-tree';
 import { AlertModal } from '@/components/ui/alert-modal';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { InviteMemberModal } from '@/components/ui/invite-member-modal';
+import { ProjectMembersList } from '@/components/ui/project-members-list';
+import { useSession } from 'next-auth/react';
 
 const fileSchema = z.object({
     path: z
@@ -86,8 +99,12 @@ const languageOptions = [
 export default function ProjectDetailPage() {
     const params = useParams();
     const router = useRouter();
+    const { data: session } = useSession();
     const projectId = params.id as string;
+    const [activeTab, setActiveTab] = useState<'files' | 'members'>('files');
     const [isCreateFileDialogOpen, setIsCreateFileDialogOpen] = useState(false);
+    const [isInviteMemberModalOpen, setIsInviteMemberModalOpen] =
+        useState(false);
     const [isZipUploading, setIsZipUploading] = useState(false);
     const zipInputRef = useRef<HTMLInputElement>(null);
     const { alertState, confirmState, showConfirm, closeAlert, closeConfirm } =
@@ -326,211 +343,299 @@ export default function ProjectDetailPage() {
                     ) : null}
                 </div>
 
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h2 className="text-2xl font-semibold">파일</h2>
-                        <p className="text-muted-foreground">
-                            프로젝트의 파일을 관리하세요
-                        </p>
-                    </div>
-
-                    <div className="flex space-x-2">
-                        {/* ZIP Upload Button */}
-                        <div>
-                            <input
-                                ref={zipInputRef}
-                                type="file"
-                                accept=".zip"
-                                onChange={handleZipUpload}
-                                className="hidden"
-                                disabled={isZipUploading}
-                            />
-                            <Button
-                                variant="outline"
-                                disabled={isZipUploading}
-                                onClick={handleZipButtonClick}
-                            >
-                                <Upload className="mr-2 h-4 w-4" />
-                                {isZipUploading
-                                    ? 'ZIP 업로드 중...'
-                                    : 'ZIP 업로드'}
-                            </Button>
-                        </div>
-
-                        {/* Create File Dialog */}
-                        <Dialog
-                            open={isCreateFileDialogOpen}
-                            onOpenChange={setIsCreateFileDialogOpen}
+                {/* Tabs */}
+                <div className="border-b border-gray-200">
+                    <nav className="-mb-px flex space-x-8">
+                        <button
+                            onClick={() => setActiveTab('files')}
+                            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                                activeTab === 'files'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
                         >
-                            <DialogTrigger asChild>
-                                <Button>
-                                    <Plus className="mr-2 h-4 w-4" />새 파일
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="sm:max-w-[600px]">
-                                <DialogHeader>
-                                    <DialogTitle>새 파일 만들기</DialogTitle>
-                                    <DialogDescription>
-                                        프로젝트에 새로운 파일을 추가합니다.
-                                    </DialogDescription>
-                                </DialogHeader>
-                                <Form {...form}>
-                                    <form
-                                        onSubmit={form.handleSubmit(onSubmit)}
-                                        className="space-y-4"
-                                    >
-                                        <FormField
-                                            control={form.control}
-                                            name="path"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>
-                                                        파일 경로
-                                                    </FormLabel>
-                                                    <FormControl>
-                                                        <Input
-                                                            placeholder="예: src/components/Button.tsx"
-                                                            {...field}
-                                                        />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="language"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>
-                                                        프로그래밍 언어
-                                                        (선택사항)
-                                                    </FormLabel>
-                                                    <Select
-                                                        onValueChange={
-                                                            field.onChange
-                                                        }
-                                                        value={field.value}
-                                                    >
-                                                        <FormControl>
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="언어를 선택하세요" />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent>
-                                                            {languageOptions.map(
-                                                                (lang) => (
-                                                                    <SelectItem
-                                                                        key={
-                                                                            lang.value
-                                                                        }
-                                                                        value={
-                                                                            lang.value
-                                                                        }
-                                                                    >
-                                                                        {
-                                                                            lang.label
-                                                                        }
-                                                                    </SelectItem>
-                                                                ),
-                                                            )}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="content"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>
-                                                        파일 내용
-                                                    </FormLabel>
-                                                    <FormControl>
-                                                        <Textarea
-                                                            placeholder="파일 내용을 입력하세요"
-                                                            className="min-h-[200px] font-mono text-sm"
-                                                            {...field}
-                                                        />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <DialogFooter>
-                                            <Button
-                                                type="submit"
-                                                disabled={
-                                                    createFileMutation.isPending
-                                                }
-                                            >
-                                                {createFileMutation.isPending
-                                                    ? '생성 중...'
-                                                    : '파일 생성'}
-                                            </Button>
-                                        </DialogFooter>
-                                    </form>
-                                </Form>
-                            </DialogContent>
-                        </Dialog>
-                    </div>
+                            <File className="h-4 w-4 inline mr-2" />
+                            파일
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('members')}
+                            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                                activeTab === 'members'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            <Users className="h-4 w-4 inline mr-2" />
+                            멤버
+                        </button>
+                    </nav>
                 </div>
 
-                {isFilesLoading ? (
-                    <Card>
-                        <CardHeader>
-                            <div className="space-y-3">
-                                {[...Array(5)].map((_, i) => (
-                                    <div
-                                        key={i}
-                                        className="flex items-center space-x-3"
-                                    >
-                                        <Skeleton className="h-4 w-4" />
-                                        <Skeleton className="h-4 w-48" />
-                                        <Skeleton className="h-4 w-16" />
-                                    </div>
-                                ))}
+                {/* Tab Content */}
+                {activeTab === 'files' && (
+                    <>
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h2 className="text-2xl font-semibold">파일</h2>
+                                <p className="text-muted-foreground">
+                                    프로젝트의 파일을 관리하세요
+                                </p>
                             </div>
-                        </CardHeader>
-                    </Card>
-                ) : files && files.length > 0 ? (
-                    <Card>
-                        <CardHeader>
-                            <FileTreeComponent
-                                tree={buildFileTree(
-                                    files.map((file) => ({
-                                        id: file.id,
-                                        path: file.path,
-                                        size:
-                                            typeof file.size === 'string'
-                                                ? parseInt(file.size, 10)
-                                                : file.size,
-                                        language: file.language,
-                                        updated_at: file.updated_at,
-                                    })),
-                                )}
-                                onFileClick={handleFileClick}
-                                onFileView={handleFileView}
-                                onFileDelete={handleFileDelete}
-                                onFolderDelete={handleFolderDelete}
-                            />
-                        </CardHeader>
-                    </Card>
-                ) : (
-                    <div className="text-center py-12">
-                        <File className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold text-muted-foreground mb-2">
-                            아직 파일이 없습니다
-                        </h3>
-                        <p className="text-muted-foreground mb-4">
-                            첫 번째 파일을 만들어 코딩을 시작해보세요!
-                        </p>
-                        <Button onClick={() => setIsCreateFileDialogOpen(true)}>
-                            <Plus className="mr-2 h-4 w-4" />새 파일 만들기
-                        </Button>
-                    </div>
+
+                            <div className="flex space-x-2">
+                                {/* ZIP Upload Button */}
+                                <div>
+                                    <input
+                                        ref={zipInputRef}
+                                        type="file"
+                                        accept=".zip"
+                                        onChange={handleZipUpload}
+                                        className="hidden"
+                                        disabled={isZipUploading}
+                                    />
+                                    <Button
+                                        variant="outline"
+                                        disabled={isZipUploading}
+                                        onClick={handleZipButtonClick}
+                                    >
+                                        <Upload className="mr-2 h-4 w-4" />
+                                        {isZipUploading
+                                            ? 'ZIP 업로드 중...'
+                                            : 'ZIP 업로드'}
+                                    </Button>
+                                </div>
+
+                                {/* Create File Dialog */}
+                                <Dialog
+                                    open={isCreateFileDialogOpen}
+                                    onOpenChange={setIsCreateFileDialogOpen}
+                                >
+                                    <DialogTrigger asChild>
+                                        <Button>
+                                            <Plus className="mr-2 h-4 w-4" />새
+                                            파일
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="sm:max-w-[600px]">
+                                        <DialogHeader>
+                                            <DialogTitle>
+                                                새 파일 만들기
+                                            </DialogTitle>
+                                            <DialogDescription>
+                                                프로젝트에 새로운 파일을
+                                                추가합니다.
+                                            </DialogDescription>
+                                        </DialogHeader>
+                                        <Form {...form}>
+                                            <form
+                                                onSubmit={form.handleSubmit(
+                                                    onSubmit,
+                                                )}
+                                                className="space-y-4"
+                                            >
+                                                <FormField
+                                                    control={form.control}
+                                                    name="path"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>
+                                                                파일 경로
+                                                            </FormLabel>
+                                                            <FormControl>
+                                                                <Input
+                                                                    placeholder="예: src/components/Button.tsx"
+                                                                    {...field}
+                                                                />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="language"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>
+                                                                프로그래밍 언어
+                                                                (선택사항)
+                                                            </FormLabel>
+                                                            <Select
+                                                                onValueChange={
+                                                                    field.onChange
+                                                                }
+                                                                value={
+                                                                    field.value
+                                                                }
+                                                            >
+                                                                <FormControl>
+                                                                    <SelectTrigger>
+                                                                        <SelectValue placeholder="언어를 선택하세요" />
+                                                                    </SelectTrigger>
+                                                                </FormControl>
+                                                                <SelectContent>
+                                                                    {languageOptions.map(
+                                                                        (
+                                                                            lang,
+                                                                        ) => (
+                                                                            <SelectItem
+                                                                                key={
+                                                                                    lang.value
+                                                                                }
+                                                                                value={
+                                                                                    lang.value
+                                                                                }
+                                                                            >
+                                                                                {
+                                                                                    lang.label
+                                                                                }
+                                                                            </SelectItem>
+                                                                        ),
+                                                                    )}
+                                                                </SelectContent>
+                                                            </Select>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="content"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>
+                                                                파일 내용
+                                                            </FormLabel>
+                                                            <FormControl>
+                                                                <Textarea
+                                                                    placeholder="파일 내용을 입력하세요"
+                                                                    className="min-h-[200px] font-mono text-sm"
+                                                                    {...field}
+                                                                />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <DialogFooter>
+                                                    <Button
+                                                        type="submit"
+                                                        disabled={
+                                                            createFileMutation.isPending
+                                                        }
+                                                    >
+                                                        {createFileMutation.isPending
+                                                            ? '생성 중...'
+                                                            : '파일 생성'}
+                                                    </Button>
+                                                </DialogFooter>
+                                            </form>
+                                        </Form>
+                                    </DialogContent>
+                                </Dialog>
+                            </div>
+                        </div>
+
+                        {isFilesLoading ? (
+                            <Card>
+                                <CardHeader>
+                                    <div className="space-y-3">
+                                        {[...Array(5)].map((_, i) => (
+                                            <div
+                                                key={i}
+                                                className="flex items-center space-x-3"
+                                            >
+                                                <Skeleton className="h-4 w-4" />
+                                                <Skeleton className="h-4 w-48" />
+                                                <Skeleton className="h-4 w-16" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </CardHeader>
+                            </Card>
+                        ) : files && files.length > 0 ? (
+                            <Card>
+                                <CardHeader>
+                                    <FileTreeComponent
+                                        tree={buildFileTree(
+                                            files.map((file) => ({
+                                                id: file.id,
+                                                path: file.path,
+                                                size:
+                                                    typeof file.size ===
+                                                    'string'
+                                                        ? parseInt(
+                                                              file.size,
+                                                              10,
+                                                          )
+                                                        : file.size,
+                                                language: file.language,
+                                                updated_at: file.updated_at,
+                                            })),
+                                        )}
+                                        onFileClick={handleFileClick}
+                                        onFileView={handleFileView}
+                                        onFileDelete={handleFileDelete}
+                                        onFolderDelete={handleFolderDelete}
+                                    />
+                                </CardHeader>
+                            </Card>
+                        ) : (
+                            <div className="text-center py-12">
+                                <File className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                                <h3 className="text-lg font-semibold text-muted-foreground mb-2">
+                                    아직 파일이 없습니다
+                                </h3>
+                                <p className="text-muted-foreground mb-4">
+                                    첫 번째 파일을 만들어 코딩을 시작해보세요!
+                                </p>
+                                <Button
+                                    onClick={() =>
+                                        setIsCreateFileDialogOpen(true)
+                                    }
+                                >
+                                    <Plus className="mr-2 h-4 w-4" />새 파일
+                                    만들기
+                                </Button>
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* Members Tab */}
+                {activeTab === 'members' && project && (
+                    <>
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h2 className="text-2xl font-semibold">
+                                    프로젝트 멤버
+                                </h2>
+                                <p className="text-muted-foreground">
+                                    프로젝트 멤버를 관리하고 초대하세요
+                                </p>
+                            </div>
+                            {session?.user?.id === project.owner_id && (
+                                <Button
+                                    onClick={() =>
+                                        setIsInviteMemberModalOpen(true)
+                                    }
+                                    className="bg-blue-600 hover:bg-blue-700"
+                                >
+                                    <UserPlus className="mr-2 h-4 w-4" />
+                                    멤버 초대
+                                </Button>
+                            )}
+                        </div>
+
+                        <Card>
+                            <CardHeader>
+                                <ProjectMembersList
+                                    projectId={projectId}
+                                    projectOwnerId={project.owner_id}
+                                />
+                            </CardHeader>
+                        </Card>
+                    </>
                 )}
 
                 <AlertModal
@@ -550,6 +655,12 @@ export default function ProjectDetailPage() {
                     confirmText={confirmState.confirmText}
                     cancelText={confirmState.cancelText}
                     variant={confirmState.variant}
+                />
+
+                <InviteMemberModal
+                    projectId={projectId}
+                    isOpen={isInviteMemberModalOpen}
+                    onClose={() => setIsInviteMemberModalOpen(false)}
                 />
             </div>
         </div>

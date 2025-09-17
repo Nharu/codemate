@@ -53,3 +53,42 @@ export interface UpdateFileData {
     content?: string;
     language?: string;
 }
+
+export enum ProjectRole {
+    OWNER = 'owner',
+    ADMIN = 'admin',
+    MEMBER = 'member',
+    VIEWER = 'viewer',
+}
+
+export interface ProjectMember {
+    id: string;
+    projectId: string;
+    userId: string;
+    role: ProjectRole;
+    invitedBy: string;
+    joinedAt: string;
+    createdAt: string;
+    updatedAt: string;
+    user: {
+        id: string;
+        email: string;
+        username: string;
+        avatar_url?: string;
+    };
+    inviter?: {
+        id: string;
+        email: string;
+        username: string;
+        avatar_url?: string;
+    };
+}
+
+export interface AddProjectMemberData {
+    email: string;
+    role: ProjectRole;
+}
+
+export interface UpdateMemberRoleData {
+    role: ProjectRole;
+}

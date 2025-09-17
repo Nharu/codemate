@@ -75,7 +75,7 @@ export default function DashboardPage() {
                     <div>
                         <h1 className="text-3xl font-bold">
                             안녕하세요,{' '}
-                            {profile?.username || session?.user?.name}
+                            {profile?.username || session?.user?.username}
                             님!
                         </h1>
                         <p className="text-gray-600 mt-1">

@@ -5,6 +5,7 @@ import { User } from '../modules/users/user.entity';
 import { Project } from '../modules/projects/project.entity';
 import { File } from '../modules/projects/file.entity';
 import { AiReviewRecord } from '../modules/ai/entities/ai-review-record.entity';
+import { ProjectMember } from 'src/modules/projects/project-member.entity';
 
 @Module({
     imports: [
@@ -17,7 +18,7 @@ import { AiReviewRecord } from '../modules/ai/entities/ai-review-record.entity';
                 username: configService.get<string>('DATABASE_USERNAME'),
                 password: configService.get<string>('DATABASE_PASSWORD'),
                 database: configService.get<string>('DATABASE_NAME'),
-                entities: [User, Project, File, AiReviewRecord],
+                entities: [User, Project, File, AiReviewRecord, ProjectMember],
                 synchronize:
                     configService.get<string>('NODE_ENV') !== 'production',
                 logging: false,

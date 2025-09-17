@@ -20,6 +20,7 @@ interface ConfirmModalProps {
     confirmText?: string;
     cancelText?: string;
     variant?: 'default' | 'destructive';
+    isLoading?: boolean;
 }
 
 export function ConfirmModal({
@@ -31,6 +32,7 @@ export function ConfirmModal({
     confirmText = '확인',
     cancelText = '취소',
     variant = 'default',
+    isLoading = false,
 }: ConfirmModalProps) {
     const handleConfirm = () => {
         onConfirm();
@@ -47,18 +49,22 @@ export function ConfirmModal({
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => onOpenChange(false)}>
+                    <AlertDialogCancel
+                        onClick={() => onOpenChange(false)}
+                        disabled={isLoading}
+                    >
                         {cancelText}
                     </AlertDialogCancel>
                     <AlertDialogAction
                         onClick={handleConfirm}
+                        disabled={isLoading}
                         className={
                             variant === 'destructive'
                                 ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
                                 : ''
                         }
                     >
-                        {confirmText}
+                        {isLoading ? '처리 중...' : confirmText}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
