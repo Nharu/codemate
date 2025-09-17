@@ -22,10 +22,13 @@ import {
     ApiParam,
 } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service';
+import { ProjectMemberService } from './project-member.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { CreateFileDto } from './dto/create-file.dto';
 import { UpdateFileDto } from './dto/update-file.dto';
+import { AddProjectMemberDto } from './dto/add-project-member.dto';
+import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../../common/types/authenticated-request.interface';
 
@@ -34,7 +37,10 @@ import type { AuthenticatedRequest } from '../../common/types/authenticated-requ
 @UseGuards(JwtAuthGuard)
 @Controller('projects')
 export class ProjectsController {
-    constructor(private readonly projectsService: ProjectsService) {}
+    constructor(
+        private readonly projectsService: ProjectsService,
+        private readonly projectMemberService: ProjectMemberService,
+    ) {}
 
     @Post()
     @ApiOperation({ summary: 'Create a new project' })
@@ -272,5 +278,110 @@ export class ProjectsController {
             file.buffer,
             req.user.id,
         );
+    }
+
+    // Project Member Management APIs
+
+    @Get(':id/members')
+    @ApiOperation({ summary: 'Get project members' })
+    @ApiParam({ name: 'id', description: 'Project ID', type: 'string' })
+    @ApiResponse({
+        status: 200,
+        description: 'Project members retrieved successfully',
+    })
+    @ApiResponse({ status: 403, description: 'Access denied' })
+    async getProjectMembers(
+        @Param('id', ParseUUIDPipe) projectId: string,
+        @Request() req: AuthenticatedRequest,
+    ) {
+        // Check if user has access to the project
+        const hasAccess = await this.projectMemberService.hasProjectAccess(
+            projectId,
+            req.user.id,
+        );
+
+        if (!hasAccess) {
+            throw new BadRequestException('프로젝트에 접근할 권한이 없습니다.');
+        }
+
+        return await this.projectMemberService.getProjectMembers(projectId);
+    }
+
+    @Post(':id/members')
+    @ApiOperation({ summary: 'Add a member to project' })
+    @ApiParam({ name: 'id', description: 'Project ID', type: 'string' })
+    @ApiResponse({ status: 201, description: 'Member added successfully' })
+    @ApiResponse({ status: 403, description: 'Access denied' })
+    @ApiResponse({ status: 404, description: 'User not found' })
+    @ApiResponse({ status: 400, description: 'User already a member' })
+    async addProjectMember(
+        @Param('id', ParseUUIDPipe) projectId: string,
+        @Body() addMemberDto: AddProjectMemberDto,
+        @Request() req: AuthenticatedRequest,
+    ) {
+        return await this.projectMemberService.addMember(
+            projectId,
+            addMemberDto.email,
+            addMemberDto.role,
+            req.user.id,
+        );
+    }
+
+    @Delete(':id/members/:userId')
+    @ApiOperation({ summary: 'Remove a member from project' })
+    @ApiParam({ name: 'id', description: 'Project ID', type: 'string' })
+    @ApiParam({
+        name: 'userId',
+        description: 'User ID to remove',
+        type: 'string',
+    })
+    @ApiResponse({ status: 200, description: 'Member removed successfully' })
+    @ApiResponse({ status: 403, description: 'Access denied' })
+    @ApiResponse({ status: 404, description: 'Member not found' })
+    async removeProjectMember(
+        @Param('id', ParseUUIDPipe) projectId: string,
+        @Param('userId', ParseUUIDPipe) userId: string,
+        @Request() req: AuthenticatedRequest,
+    ) {
+        await this.projectMemberService.removeMember(
+            projectId,
+            userId,
+            req.user.id,
+        );
+        return { message: '멤버가 성공적으로 제거되었습니다.' };
+    }
+
+    @Patch(':id/members/:userId/role')
+    @ApiOperation({ summary: 'Update member role in project' })
+    @ApiParam({ name: 'id', description: 'Project ID', type: 'string' })
+    @ApiParam({ name: 'userId', description: 'User ID', type: 'string' })
+    @ApiResponse({
+        status: 200,
+        description: 'Member role updated successfully',
+    })
+    @ApiResponse({ status: 403, description: 'Access denied' })
+    @ApiResponse({ status: 404, description: 'Member not found' })
+    async updateMemberRole(
+        @Param('id', ParseUUIDPipe) projectId: string,
+        @Param('userId', ParseUUIDPipe) userId: string,
+        @Body() updateRoleDto: UpdateMemberRoleDto,
+        @Request() req: AuthenticatedRequest,
+    ) {
+        return await this.projectMemberService.updateMemberRole(
+            projectId,
+            userId,
+            updateRoleDto.role,
+            req.user.id,
+        );
+    }
+
+    @Get('shared')
+    @ApiOperation({ summary: 'Get projects shared with current user' })
+    @ApiResponse({
+        status: 200,
+        description: 'Shared projects retrieved successfully',
+    })
+    async getSharedProjects(@Request() req: AuthenticatedRequest) {
+        return await this.projectMemberService.getUserProjects(req.user.id);
     }
 }

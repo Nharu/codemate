@@ -6,8 +6,10 @@ import {
     UpdateDateColumn,
     ManyToOne,
     JoinColumn,
+    OneToMany,
 } from 'typeorm';
 import { User } from '../users/user.entity';
+import { ProjectMember } from './project-member.entity';
 
 export enum ProjectVisibility {
     PUBLIC = 'public',
@@ -38,6 +40,9 @@ export class Project {
         default: ProjectVisibility.PRIVATE,
     })
     visibility: ProjectVisibility;
+
+    @OneToMany(() => ProjectMember, (member) => member.project)
+    members: ProjectMember[];
 
     @CreateDateColumn({ type: 'timestamptz' })
     created_at: Date;

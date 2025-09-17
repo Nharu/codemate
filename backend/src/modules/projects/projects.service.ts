@@ -3,11 +3,14 @@ import {
     NotFoundException,
     ForbiddenException,
     ConflictException,
+    Inject,
+    forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Project, ProjectVisibility } from './project.entity';
 import { File } from './file.entity';
+import { ProjectMemberService } from './project-member.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { CreateFileDto } from './dto/create-file.dto';
@@ -22,6 +25,8 @@ export class ProjectsService {
         private projectRepository: Repository<Project>,
         @InjectRepository(File)
         private fileRepository: Repository<File>,
+        @Inject(forwardRef(() => ProjectMemberService))
+        private projectMemberService: ProjectMemberService,
     ) {}
 
     async create(
@@ -63,11 +68,13 @@ export class ProjectsService {
             throw new NotFoundException('Project not found');
         }
 
-        // Check if user owns the project or if it's public
-        if (
-            project.owner_id !== userId &&
-            project.visibility === ProjectVisibility.PRIVATE
-        ) {
+        // Check if user has access to the project (owner, member, or public)
+        const hasAccess = await this.projectMemberService.hasProjectAccess(
+            id,
+            userId,
+        );
+
+        if (!hasAccess && project.visibility === ProjectVisibility.PRIVATE) {
             throw new ForbiddenException('Access denied to this project');
         }
 
