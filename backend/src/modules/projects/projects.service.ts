@@ -129,10 +129,17 @@ export class ProjectsService {
         createFileDto: CreateFileDto,
         userId: string,
     ): Promise<File> {
-        const project = await this.findOne(projectId, userId);
+        // Ensure user has access to the project
+        await this.findOne(projectId, userId);
 
-        if (project.owner_id !== userId) {
-            throw new ForbiddenException('Only project owner can add files');
+        const canEdit = await this.projectMemberService.canEditFiles(
+            projectId,
+            userId,
+        );
+        if (!canEdit) {
+            throw new ForbiddenException(
+                'Only project members with edit permissions can add files',
+            );
         }
 
         // Check if file path already exists in this project
@@ -186,10 +193,17 @@ export class ProjectsService {
         updateFileDto: UpdateFileDto,
         userId: string,
     ): Promise<File> {
-        const project = await this.findOne(projectId, userId);
+        // Ensure user has access to the project
+        await this.findOne(projectId, userId);
 
-        if (project.owner_id !== userId) {
-            throw new ForbiddenException('Only project owner can update files');
+        const canEdit = await this.projectMemberService.canEditFiles(
+            projectId,
+            userId,
+        );
+        if (!canEdit) {
+            throw new ForbiddenException(
+                'Only project members with edit permissions can update files',
+            );
         }
 
         const file = await this.getFile(projectId, fileId, userId);

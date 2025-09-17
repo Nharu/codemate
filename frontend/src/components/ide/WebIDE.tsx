@@ -154,6 +154,7 @@ export default function WebIDE({
         currentRoomId,
         joinRoom,
         hasOtherUsers,
+        setupMonacoBinding,
     } = useCollaboration();
 
     // Auto-join room when activeTab changes (always enabled in auto mode)
@@ -172,6 +173,37 @@ export default function WebIDE({
         projectId,
         joinRoom,
     ]);
+
+    // Setup collaboration binding when room or editor changes
+    useEffect(() => {
+        let collaborationCleanup: (() => void) | null = null;
+
+        const setupCollaboration = async () => {
+            if (
+                editorRef.current &&
+                activeTab &&
+                currentRoomId &&
+                setupMonacoBinding
+            ) {
+                try {
+                    collaborationCleanup = await setupMonacoBinding(
+                        editorRef.current,
+                        currentRoomId,
+                    );
+                } catch (error) {
+                    console.error('Failed to setup collaboration:', error);
+                }
+            }
+        };
+
+        setupCollaboration();
+
+        return () => {
+            if (collaborationCleanup) {
+                collaborationCleanup();
+            }
+        };
+    }, [currentRoomId, activeTab?.id, activeTab, setupMonacoBinding]);
 
     const getLanguageFromPath = useCallback((path: string): string => {
         const ext = path.split('.').pop()?.toLowerCase();
@@ -1411,34 +1443,12 @@ export default function WebIDE({
                                         `;
                                         document.head.appendChild(style);
 
-                                        // Store decorations for cleanup
-                                        const currentDecorations: string[] = [];
-
-                                        // TODO: Setup collaboration cursor rendering
-                                        // This will be implemented in CollaborationContext
-                                        const renderCollaborationCursors =
-                                            () => {
-                                                // Disabled for now - will be implemented in context
-                                            };
-
-                                        // Re-render cursors when users change
-                                        const renderCursorsInterval =
-                                            setInterval(
-                                                renderCollaborationCursors,
-                                                100,
-                                            );
+                                        // Real-time collaboration is now handled by useEffect hook
+                                        // that responds to room changes
 
                                         // Cleanup on unmount
                                         editor.onDidDispose(() => {
-                                            clearInterval(
-                                                renderCursorsInterval,
-                                            );
                                             style.remove();
-                                            // Clear remaining decorations
-                                            editor.deltaDecorations(
-                                                currentDecorations,
-                                                [],
-                                            );
                                         });
                                     }}
                                     options={{

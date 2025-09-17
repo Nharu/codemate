@@ -216,4 +216,14 @@ export class ProjectMemberService {
             await this.projectMemberRepository.save(ownerMember);
         }
     }
+
+    async canEditFiles(projectId: string, userId: string): Promise<boolean> {
+        const role = await this.getUserRoleInProject(projectId, userId);
+        // OWNER, ADMIN, MEMBER can edit files, VIEWER cannot
+        return (
+            role === ProjectRole.OWNER ||
+            role === ProjectRole.ADMIN ||
+            role === ProjectRole.MEMBER
+        );
+    }
 }

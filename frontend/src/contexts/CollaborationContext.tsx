@@ -11,6 +11,11 @@ import React, {
 import { useSession } from 'next-auth/react';
 import io, { type Socket } from 'socket.io-client';
 import type { ConnectedUser } from '@/types/collaboration';
+import type { editor } from 'monaco-editor';
+
+// Yjs types - using unknown temporarily until properly imported
+type YDoc = unknown;
+type YBinding = unknown & { destroy: () => void };
 
 interface CollaborationContextType {
     // Socket connection state
@@ -29,6 +34,12 @@ interface CollaborationContextType {
     // Status (always enabled in auto mode)
     isCollaborationEnabled: boolean;
     hasOtherUsers: boolean; // New: indicates if there are other users in current room
+
+    // Yjs and Monaco binding
+    setupMonacoBinding: (
+        editor: editor.IStandaloneCodeEditor,
+        roomId: string,
+    ) => Promise<() => void>;
 }
 
 const CollaborationContext = createContext<CollaborationContextType | null>(
@@ -67,9 +78,10 @@ export const CollaborationProvider: React.FC<CollaborationProviderProps> = ({
     // Refs
     const socketRef = useRef<Socket | null>(null);
     const isInitializingRef = useRef(false);
-    const ydocRef = useRef<unknown | null>(null);
-    const bindingRef = useRef<unknown | null>(null);
+    const ydocRef = useRef<YDoc | null>(null);
+    const bindingRef = useRef<YBinding | null>(null);
     const providerRef = useRef<unknown | null>(null);
+    const roomBindingsRef = useRef<Map<string, YBinding>>(new Map());
 
     // Start collaboration - create socket connection
     const startCollaboration = useCallback(async () => {
@@ -237,6 +249,102 @@ export const CollaborationProvider: React.FC<CollaborationProviderProps> = ({
         setConnectedUsers([]);
     }, [currentRoomId]);
 
+    // Setup Monaco editor binding with Yjs for real-time collaboration
+    const setupMonacoBinding = useCallback(
+        async (editor: editor.IStandaloneCodeEditor, roomId: string) => {
+            if (!ydocRef.current || !socketRef.current) {
+                console.warn('Yjs document or socket not initialized');
+                return () => {};
+            }
+
+            // Check if binding already exists for this room
+            if (roomBindingsRef.current.has(roomId)) {
+                const existingBinding = roomBindingsRef.current.get(roomId);
+                return () => {
+                    if (existingBinding && existingBinding.destroy) {
+                        existingBinding.destroy();
+                        roomBindingsRef.current.delete(roomId);
+                    }
+                };
+            }
+
+            try {
+                // Dynamically import Monaco binding and Yjs
+                const [{ MonacoBinding }, Y] = await Promise.all([
+                    import('y-monaco'),
+                    import('yjs'),
+                ]);
+
+                // Now that we have the types, we can properly cast
+                const ydoc = ydocRef.current as InstanceType<typeof Y.Doc>;
+                const ytext = ydoc.getText(roomId);
+
+                // Initialize Yjs text with Monaco content if it's empty and Monaco has content
+                const currentContent = editor.getValue();
+                if (ytext.length === 0 && currentContent.length > 0) {
+                    ytext.insert(0, currentContent);
+                }
+
+                // Get Monaco model (should not be null at this point)
+                const model = editor.getModel();
+                if (!model) {
+                    throw new Error('Monaco editor model is null');
+                }
+
+                // Create Monaco binding
+                const binding = new MonacoBinding(
+                    ytext,
+                    model,
+                    new Set([editor]),
+                    null, // No awareness for now
+                );
+
+                // Store the binding
+                roomBindingsRef.current.set(roomId, binding as YBinding);
+
+                // Setup Yjs update handler to send changes via WebSocket
+                const updateHandler = (update: Uint8Array, origin: unknown) => {
+                    // Only send updates that didn't come from WebSocket
+                    if (origin !== 'websocket' && socketRef.current) {
+                        socketRef.current.emit('yjs-update', {
+                            roomId,
+                            update: Array.from(update),
+                        });
+                    }
+                };
+
+                ydoc.on('update', updateHandler);
+
+                // Setup WebSocket handler to receive updates
+                const handleYjsUpdate = (data: {
+                    roomId: string;
+                    update: number[];
+                }) => {
+                    if (data.roomId === roomId) {
+                        const update = new Uint8Array(data.update);
+                        Y.applyUpdate(ydoc, update, 'websocket');
+                    }
+                };
+
+                socketRef.current.on('yjs-update', handleYjsUpdate);
+
+                // Return cleanup function
+                return () => {
+                    if (binding && binding.destroy) {
+                        binding.destroy();
+                    }
+                    roomBindingsRef.current.delete(roomId);
+                    ydoc?.off('update', updateHandler);
+                    socketRef.current?.off('yjs-update', handleYjsUpdate);
+                };
+            } catch (error) {
+                console.error('Failed to setup Monaco binding:', error);
+                return () => {};
+            }
+        },
+        [],
+    );
+
     // Auto-start collaboration when session is available
     useEffect(() => {
         if (
@@ -267,6 +375,7 @@ export const CollaborationProvider: React.FC<CollaborationProviderProps> = ({
         leaveRoom,
         isCollaborationEnabled,
         hasOtherUsers,
+        setupMonacoBinding,
     };
 
     return (

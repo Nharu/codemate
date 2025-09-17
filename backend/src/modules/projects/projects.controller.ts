@@ -121,7 +121,7 @@ export class ProjectsController {
     @ApiResponse({ status: 409, description: 'File path already exists' })
     @ApiResponse({
         status: 403,
-        description: 'Only project owner can add files',
+        description: 'Only project members with edit permissions can add files',
     })
     createFile(
         @Param('id', ParseUUIDPipe) projectId: string,
@@ -167,7 +167,8 @@ export class ProjectsController {
     @ApiResponse({ status: 200, description: 'File updated successfully' })
     @ApiResponse({
         status: 403,
-        description: 'Only project owner can update files',
+        description:
+            'Only project members with edit permissions can update files',
     })
     @ApiResponse({ status: 404, description: 'File not found' })
     updateFile(

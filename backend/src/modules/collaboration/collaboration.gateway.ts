@@ -286,6 +286,33 @@ export class CollaborationGateway
         return { success: true };
     }
 
+    @SubscribeMessage('yjs-update')
+    handleYjsUpdate(
+        @MessageBody()
+        data: {
+            roomId: string;
+            update: number[];
+        },
+        @ConnectedSocket() client: SocketWithUser,
+    ): { error: string } | void {
+        const { roomId, update } = data;
+        const user = client.data.user;
+
+        if (!user) {
+            return { error: 'User not authenticated' };
+        }
+
+        // Broadcast the Yjs update to all other clients in the room
+        client.to(roomId).emit('yjs-update', {
+            roomId,
+            update,
+            userId: user.userId,
+            username: user.username,
+        });
+
+        this.logger.debug(`Yjs update in room ${roomId} from ${user.username}`);
+    }
+
     private leaveAllRooms(client: SocketWithUser): void {
         const user = client.data.user;
         if (!user) return;
