@@ -10,15 +10,21 @@ import {
     Folder,
     MoreVertical,
     Trash2,
-    Edit3,
     Eye,
     Lock,
+    Crown,
+    Shield,
+    User,
+    Calendar,
+    Share2,
 } from 'lucide-react';
 import {
     useProjects,
     useCreateProject,
     useDeleteProject,
 } from '@/hooks/useProjects';
+import { useSharedProjects } from '@/hooks/useProjectMembers';
+import { ProjectRole } from '@/types/project';
 import { useModal } from '@/hooks/useModal';
 import { toast } from 'sonner';
 import { ProjectVisibility } from '@/types/project';
@@ -79,12 +85,36 @@ const projectSchema = z.object({
 
 type ProjectForm = z.infer<typeof projectSchema>;
 
+const roleIcons = {
+    [ProjectRole.OWNER]: Crown,
+    [ProjectRole.ADMIN]: Shield,
+    [ProjectRole.MEMBER]: User,
+    [ProjectRole.VIEWER]: Eye,
+};
+
+const roleLabels = {
+    [ProjectRole.OWNER]: '소유자',
+    [ProjectRole.ADMIN]: '관리자',
+    [ProjectRole.MEMBER]: '멤버',
+    [ProjectRole.VIEWER]: '뷰어',
+};
+
+const roleColors = {
+    [ProjectRole.OWNER]: 'bg-purple-100 text-purple-800',
+    [ProjectRole.ADMIN]: 'bg-orange-100 text-orange-800',
+    [ProjectRole.MEMBER]: 'bg-green-100 text-green-800',
+    [ProjectRole.VIEWER]: 'bg-gray-100 text-gray-800',
+};
+
 export default function ProjectsPage() {
     const router = useRouter();
+    const [activeTab, setActiveTab] = useState<'owned' | 'shared'>('owned');
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const { alertState, confirmState, showConfirm, closeAlert, closeConfirm } =
         useModal();
     const { data: projects, isLoading, error } = useProjects();
+    const { data: sharedProjects, isLoading: isSharedLoading } =
+        useSharedProjects();
     const createProjectMutation = useCreateProject();
     const deleteProjectMutation = useDeleteProject();
 
@@ -270,138 +300,300 @@ export default function ProjectsPage() {
                     </Dialog>
                 </div>
 
-                {isLoading ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {[...Array(6)].map((_, i) => (
-                            <Card
-                                key={i}
-                                className="cursor-pointer hover:shadow-md transition-shadow"
-                            >
-                                <CardHeader>
-                                    <Skeleton className="h-6 w-3/4" />
-                                    <Skeleton className="h-4 w-full" />
-                                </CardHeader>
-                                <CardContent>
-                                    <Skeleton className="h-4 w-1/2" />
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
-                ) : projects && projects.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {projects.map((project) => (
-                            <Card
-                                key={project.id}
-                                className="cursor-pointer hover:shadow-md transition-shadow"
-                                onClick={() =>
-                                    router.push(
-                                        `/dashboard/projects/${project.id}`,
-                                    )
-                                }
-                            >
-                                <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
-                                    <div className="flex items-start space-x-3 flex-1">
-                                        <Folder className="h-6 w-6 text-blue-500 mt-1" />
-                                        <div className="flex-1 min-w-0">
-                                            <CardTitle className="text-lg font-semibold truncate">
-                                                {project.name}
-                                            </CardTitle>
-                                            <div className="flex items-center space-x-2 mt-1">
-                                                <Badge
-                                                    variant={
-                                                        project.visibility ===
-                                                        'public'
-                                                            ? 'default'
-                                                            : 'secondary'
+                {/* Tabs */}
+                <div className="border-b border-gray-200">
+                    <nav className="-mb-px flex space-x-8">
+                        <button
+                            onClick={() => setActiveTab('owned')}
+                            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                                activeTab === 'owned'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            <Folder className="h-4 w-4 inline mr-2" />내
+                            프로젝트
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('shared')}
+                            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                                activeTab === 'shared'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            <Share2 className="h-4 w-4 inline mr-2" />
+                            공유된 프로젝트
+                        </button>
+                    </nav>
+                </div>
+
+                {/* Owned Projects Tab */}
+                {activeTab === 'owned' && (
+                    <>
+                        {isLoading ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {[...Array(6)].map((_, i) => (
+                                    <Card
+                                        key={i}
+                                        className="cursor-pointer hover:shadow-md transition-shadow"
+                                    >
+                                        <CardHeader>
+                                            <Skeleton className="h-6 w-3/4" />
+                                            <Skeleton className="h-4 w-full" />
+                                        </CardHeader>
+                                        <CardContent>
+                                            <Skeleton className="h-4 w-1/2" />
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        ) : projects && projects.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {projects.map((project) => (
+                                    <Card
+                                        key={project.id}
+                                        className="cursor-pointer hover:shadow-md transition-shadow"
+                                        onClick={() =>
+                                            router.push(
+                                                `/dashboard/projects/${project.id}`,
+                                            )
+                                        }
+                                    >
+                                        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
+                                            <div className="flex items-start space-x-3 flex-1">
+                                                <Folder className="h-6 w-6 text-blue-500 mt-1" />
+                                                <div className="flex-1 min-w-0">
+                                                    <CardTitle className="text-lg font-semibold truncate">
+                                                        {project.name}
+                                                    </CardTitle>
+                                                    <div className="flex items-center space-x-2 mt-1">
+                                                        <Badge
+                                                            variant={
+                                                                project.visibility ===
+                                                                'public'
+                                                                    ? 'default'
+                                                                    : 'secondary'
+                                                            }
+                                                        >
+                                                            {project.visibility ===
+                                                            'public' ? (
+                                                                <>
+                                                                    <Eye className="mr-1 h-3 w-3" />
+                                                                    공개
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Lock className="mr-1 h-3 w-3" />
+                                                                    비공개
+                                                                </>
+                                                            )}
+                                                        </Badge>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger
+                                                    asChild
+                                                    onClick={(e) =>
+                                                        e.stopPropagation()
                                                     }
                                                 >
-                                                    {project.visibility ===
-                                                    'public' ? (
-                                                        <>
-                                                            <Eye className="mr-1 h-3 w-3" />
-                                                            공개
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Lock className="mr-1 h-3 w-3" />
-                                                            비공개
-                                                        </>
-                                                    )}
-                                                </Badge>
+                                                    <Button
+                                                        variant="ghost"
+                                                        className="h-8 w-8 p-0"
+                                                    >
+                                                        <MoreVertical className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeleteProject(
+                                                                project.id,
+                                                            );
+                                                        }}
+                                                        className="text-red-600"
+                                                    >
+                                                        <Trash2 className="mr-2 h-4 w-4" />
+                                                        삭제
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <CardDescription className="text-sm text-muted-foreground line-clamp-2">
+                                                {project.description ||
+                                                    '설명이 없습니다.'}
+                                            </CardDescription>
+                                            <div className="flex items-center justify-between mt-4 text-xs text-muted-foreground">
+                                                <span>
+                                                    소유자:{' '}
+                                                    {project.owner.username}
+                                                </span>
+                                                <span>
+                                                    {new Date(
+                                                        project.updated_at,
+                                                    ).toLocaleDateString()}
+                                                </span>
                                             </div>
-                                        </div>
-                                    </div>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger
-                                            asChild
-                                            onClick={(e) => e.stopPropagation()}
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-12">
+                                <Folder className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                                <h3 className="text-lg font-semibold text-muted-foreground mb-2">
+                                    아직 프로젝트가 없습니다
+                                </h3>
+                                <p className="text-muted-foreground mb-4">
+                                    첫 번째 프로젝트를 만들어 코드 협업을
+                                    시작해보세요!
+                                </p>
+                                <Button
+                                    onClick={() => setIsCreateDialogOpen(true)}
+                                >
+                                    <Plus className="mr-2 h-4 w-4" />새 프로젝트
+                                    만들기
+                                </Button>
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* Shared Projects Tab */}
+                {activeTab === 'shared' && (
+                    <>
+                        {isSharedLoading ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {[...Array(6)].map((_, i) => (
+                                    <Card
+                                        key={i}
+                                        className="cursor-pointer hover:shadow-md transition-shadow"
+                                    >
+                                        <CardHeader>
+                                            <Skeleton className="h-6 w-3/4" />
+                                            <Skeleton className="h-4 w-full" />
+                                        </CardHeader>
+                                        <CardContent>
+                                            <Skeleton className="h-4 w-1/2" />
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        ) : sharedProjects && sharedProjects.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {sharedProjects.map((project) => {
+                                    // The userRole and joinedAt are already included from backend
+                                    const userRole = project.userRole;
+                                    const RoleIcon = userRole
+                                        ? roleIcons[userRole]
+                                        : User;
+
+                                    return (
+                                        <Card
+                                            key={project.id}
+                                            className="cursor-pointer hover:shadow-md transition-shadow"
+                                            onClick={() =>
+                                                router.push(
+                                                    `/dashboard/projects/${project.id}`,
+                                                )
+                                            }
                                         >
-                                            <Button
-                                                variant="ghost"
-                                                className="h-8 w-8 p-0"
-                                            >
-                                                <MoreVertical className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuItem
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    router.push(
-                                                        `/dashboard/projects/${project.id}/edit`,
-                                                    );
-                                                }}
-                                            >
-                                                <Edit3 className="mr-2 h-4 w-4" />
-                                                편집
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDeleteProject(
-                                                        project.id,
-                                                    );
-                                                }}
-                                                className="text-red-600"
-                                            >
-                                                <Trash2 className="mr-2 h-4 w-4" />
-                                                삭제
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </CardHeader>
-                                <CardContent>
-                                    <CardDescription className="text-sm text-muted-foreground line-clamp-2">
-                                        {project.description ||
-                                            '설명이 없습니다.'}
-                                    </CardDescription>
-                                    <div className="flex items-center justify-between mt-4 text-xs text-muted-foreground">
-                                        <span>
-                                            소유자: {project.owner.username}
-                                        </span>
-                                        <span>
-                                            {new Date(
-                                                project.updated_at,
-                                            ).toLocaleDateString()}
-                                        </span>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="text-center py-12">
-                        <Folder className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold text-muted-foreground mb-2">
-                            아직 프로젝트가 없습니다
-                        </h3>
-                        <p className="text-muted-foreground mb-4">
-                            첫 번째 프로젝트를 만들어 코드 협업을 시작해보세요!
-                        </p>
-                        <Button onClick={() => setIsCreateDialogOpen(true)}>
-                            <Plus className="mr-2 h-4 w-4" />새 프로젝트 만들기
-                        </Button>
-                    </div>
+                                            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
+                                                <div className="flex items-start space-x-3 flex-1">
+                                                    <Folder className="h-6 w-6 text-blue-500 mt-1" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <CardTitle className="text-lg font-semibold truncate">
+                                                            {project.name}
+                                                        </CardTitle>
+                                                        <div className="flex items-center space-x-2 mt-1">
+                                                            <Badge
+                                                                variant={
+                                                                    project.visibility ===
+                                                                    'public'
+                                                                        ? 'default'
+                                                                        : 'secondary'
+                                                                }
+                                                                className="text-xs"
+                                                            >
+                                                                {project.visibility ===
+                                                                'public' ? (
+                                                                    <>
+                                                                        <Eye className="mr-1 h-3 w-3" />
+                                                                        공개
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Lock className="mr-1 h-3 w-3" />
+                                                                        비공개
+                                                                    </>
+                                                                )}
+                                                            </Badge>
+                                                            {userRole && (
+                                                                <Badge
+                                                                    className={`text-xs ${roleColors[userRole]}`}
+                                                                >
+                                                                    <RoleIcon className="mr-1 h-3 w-3" />
+                                                                    {
+                                                                        roleLabels[
+                                                                            userRole
+                                                                        ]
+                                                                    }
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <CardDescription className="text-sm text-muted-foreground line-clamp-2">
+                                                    {project.description ||
+                                                        '설명이 없습니다.'}
+                                                </CardDescription>
+                                                <div className="flex items-center justify-between mt-4 text-xs text-muted-foreground">
+                                                    <span>
+                                                        소유자:{' '}
+                                                        {project.owner.username}
+                                                    </span>
+                                                    <div className="flex items-center space-x-2">
+                                                        <Calendar className="h-3 w-3" />
+                                                        <span>
+                                                            {project.joinedAt &&
+                                                                new Date(
+                                                                    project.joinedAt,
+                                                                ).toLocaleDateString(
+                                                                    'ko-KR',
+                                                                )}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="text-center py-12">
+                                <Share2 className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                                <h3 className="text-lg font-semibold text-muted-foreground mb-2">
+                                    공유된 프로젝트가 없습니다
+                                </h3>
+                                <p className="text-muted-foreground mb-4">
+                                    다른 사용자가 프로젝트에 초대하면 여기에
+                                    표시됩니다.
+                                </p>
+                                <Button
+                                    onClick={() => setActiveTab('owned')}
+                                    variant="outline"
+                                >
+                                    내 프로젝트 보기
+                                </Button>
+                            </div>
+                        )}
+                    </>
                 )}
 
                 <AlertModal

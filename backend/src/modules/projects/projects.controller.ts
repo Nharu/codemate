@@ -63,6 +63,16 @@ export class ProjectsController {
         return this.projectsService.findAll(req.user.id);
     }
 
+    @Get('shared')
+    @ApiOperation({ summary: 'Get projects shared with current user' })
+    @ApiResponse({
+        status: 200,
+        description: 'Shared projects retrieved successfully',
+    })
+    async getSharedProjects(@Request() req: AuthenticatedRequest) {
+        return await this.projectMemberService.getUserProjects(req.user.id);
+    }
+
     @Get(':id')
     @ApiOperation({ summary: 'Get a specific project' })
     @ApiParam({ name: 'id', description: 'Project ID', type: 'string' })
@@ -373,15 +383,5 @@ export class ProjectsController {
             updateRoleDto.role,
             req.user.id,
         );
-    }
-
-    @Get('shared')
-    @ApiOperation({ summary: 'Get projects shared with current user' })
-    @ApiResponse({
-        status: 200,
-        description: 'Shared projects retrieved successfully',
-    })
-    async getSharedProjects(@Request() req: AuthenticatedRequest) {
-        return await this.projectMemberService.getUserProjects(req.user.id);
     }
 }

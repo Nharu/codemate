@@ -114,11 +114,21 @@ const authOptions: NextAuthOptions = {
         async jwt({ token, user }) {
             if (user) {
                 token.accessToken = user.accessToken;
+                token.id = user.id;
+                token.username = user.username;
+                token.avatar_url = user.avatar_url;
+                token.hasPassword = user.hasPassword;
             }
             return token;
         },
         async session({ session, token }) {
             session.accessToken = token.accessToken;
+            if (token.id) {
+                session.user.id = token.id as string;
+                session.user.username = token.username as string;
+                session.user.avatar_url = token.avatar_url as string;
+                session.user.hasPassword = token.hasPassword as boolean;
+            }
             return session;
         },
     },

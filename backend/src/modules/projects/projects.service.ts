@@ -49,7 +49,15 @@ export class ProjectsService {
             owner_id: userId,
         });
 
-        return this.projectRepository.save(project);
+        const savedProject = await this.projectRepository.save(project);
+
+        // Add owner as OWNER member
+        await this.projectMemberService.ensureOwnerMembership(
+            savedProject.id,
+            userId,
+        );
+
+        return savedProject;
     }
 
     async findAll(userId: string): Promise<Project[]> {
@@ -66,6 +74,11 @@ export class ProjectsService {
 
         if (!project) {
             throw new NotFoundException('Project not found');
+        }
+
+        // Ensure owner has membership record (for existing projects)
+        if (project.owner_id === userId) {
+            await this.projectMemberService.ensureOwnerMembership(id, userId);
         }
 
         // Check if user has access to the project (owner, member, or public)

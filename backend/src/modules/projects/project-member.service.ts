@@ -193,4 +193,27 @@ export class ProjectMemberService {
         const role = await this.getUserRoleInProject(projectId, userId);
         return role === ProjectRole.OWNER || role === ProjectRole.ADMIN;
     }
+
+    async ensureOwnerMembership(
+        projectId: string,
+        ownerId: string,
+    ): Promise<void> {
+        // Check if owner already has a membership record
+        const existingMembership = await this.projectMemberRepository.findOne({
+            where: { projectId, userId: ownerId },
+        });
+
+        if (!existingMembership) {
+            // Create OWNER membership record
+            const ownerMember = this.projectMemberRepository.create({
+                projectId,
+                userId: ownerId,
+                role: ProjectRole.OWNER,
+                invitedBy: ownerId, // Owner invited themselves
+                joinedAt: new Date().toISOString(),
+            });
+
+            await this.projectMemberRepository.save(ownerMember);
+        }
+    }
 }

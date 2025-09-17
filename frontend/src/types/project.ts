@@ -17,6 +17,10 @@ export interface Project {
     visibility: ProjectVisibility;
     created_at: string;
     updated_at: string;
+    // Additional fields for shared projects
+    userRole?: ProjectRole;
+    joinedAt?: string;
+    invitedBy?: string;
 }
 
 export interface File {
