@@ -25,11 +25,10 @@ interface CollaborationContextType {
     // Actions
     joinRoom: (roomId: string) => void;
     leaveRoom: () => void;
-    startCollaboration: () => void;
-    stopCollaboration: () => void;
 
-    // Status
+    // Status (always enabled in auto mode)
     isCollaborationEnabled: boolean;
+    hasOtherUsers: boolean; // New: indicates if there are other users in current room
 }
 
 const CollaborationContext = createContext<CollaborationContextType | null>(
@@ -62,7 +61,8 @@ export const CollaborationProvider: React.FC<CollaborationProviderProps> = ({
     const [isConnecting, setIsConnecting] = useState(false);
     const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
     const [connectedUsers, setConnectedUsers] = useState<ConnectedUser[]>([]);
-    const [isCollaborationEnabled, setIsCollaborationEnabled] = useState(false);
+    const [isCollaborationEnabled] = useState(true); // Always enabled in auto mode
+    const [hasOtherUsers, setHasOtherUsers] = useState(false);
 
     // Refs
     const socketRef = useRef<Socket | null>(null);
@@ -115,16 +115,13 @@ export const CollaborationProvider: React.FC<CollaborationProviderProps> = ({
             socket.on('connect', () => {
                 setIsConnected(true);
                 setIsConnecting(false);
-                setIsCollaborationEnabled(true);
                 isInitializingRef.current = false;
             });
 
-            socket.on('disconnect', (reason) => {
+            socket.on('disconnect', (_reason) => {
                 setIsConnected(false);
                 setConnectedUsers([]);
-                if (reason !== 'io client disconnect') {
-                    setIsCollaborationEnabled(false);
-                }
+                setHasOtherUsers(false);
                 isInitializingRef.current = false;
             });
 
@@ -137,6 +134,8 @@ export const CollaborationProvider: React.FC<CollaborationProviderProps> = ({
                 'user-joined',
                 (data: { user: ConnectedUser; users: ConnectedUser[] }) => {
                     setConnectedUsers(data.users);
+                    // Check if there are other users besides current user
+                    setHasOtherUsers(data.users.length > 1);
                 },
             );
 
@@ -144,6 +143,8 @@ export const CollaborationProvider: React.FC<CollaborationProviderProps> = ({
                 'user-left',
                 (data: { user: ConnectedUser; users: ConnectedUser[] }) => {
                     setConnectedUsers(data.users);
+                    // Check if there are other users besides current user
+                    setHasOtherUsers(data.users.length > 1);
                 },
             );
 
@@ -156,7 +157,7 @@ export const CollaborationProvider: React.FC<CollaborationProviderProps> = ({
     }, [session?.accessToken]);
 
     // Stop collaboration - disconnect socket
-    const stopCollaboration = useCallback(() => {
+    const _stopCollaboration = useCallback(() => {
         // Clean up Yjs bindings
         if (
             bindingRef.current &&
@@ -198,9 +199,9 @@ export const CollaborationProvider: React.FC<CollaborationProviderProps> = ({
         // Reset state
         setIsConnected(false);
         setIsConnecting(false);
-        setIsCollaborationEnabled(false);
         setConnectedUsers([]);
         setCurrentRoomId(null);
+        setHasOtherUsers(false);
         isInitializingRef.current = false;
     }, [currentRoomId]);
 
@@ -236,6 +237,17 @@ export const CollaborationProvider: React.FC<CollaborationProviderProps> = ({
         setConnectedUsers([]);
     }, [currentRoomId]);
 
+    // Auto-start collaboration when session is available
+    useEffect(() => {
+        if (
+            session?.accessToken &&
+            !socketRef.current &&
+            !isInitializingRef.current
+        ) {
+            startCollaboration();
+        }
+    }, [session?.accessToken, startCollaboration]);
+
     // Cleanup on unmount
     useEffect(() => {
         return () => {
@@ -253,9 +265,8 @@ export const CollaborationProvider: React.FC<CollaborationProviderProps> = ({
         connectedUsers,
         joinRoom,
         leaveRoom,
-        startCollaboration,
-        stopCollaboration,
         isCollaborationEnabled,
+        hasOtherUsers,
     };
 
     return (

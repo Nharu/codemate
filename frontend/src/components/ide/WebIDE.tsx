@@ -149,27 +149,16 @@ export default function WebIDE({
 
     // Use CollaborationContext
     const {
-        isConnecting,
         isCollaborationEnabled,
         connectedUsers,
         currentRoomId,
         joinRoom,
-        startCollaboration,
-        stopCollaboration,
+        hasOtherUsers,
     } = useCollaboration();
 
-    // Collaboration toggle using CollaborationContext
-    const toggleCollaboration = useCallback(() => {
-        if (isCollaborationEnabled) {
-            stopCollaboration();
-        } else {
-            startCollaboration();
-        }
-    }, [isCollaborationEnabled, startCollaboration, stopCollaboration]);
-
-    // Auto-join room when activeTab changes
+    // Auto-join room when activeTab changes (always enabled in auto mode)
     useEffect(() => {
-        if (activeTab && isCollaborationEnabled) {
+        if (activeTab) {
             const roomId = `project-${projectId}-file-${activeTab.id}`;
             if (currentRoomId !== roomId) {
                 joinRoom(roomId);
@@ -179,7 +168,6 @@ export default function WebIDE({
         activeTab?.id,
         activeTab?.name,
         activeTab,
-        isCollaborationEnabled,
         currentRoomId,
         projectId,
         joinRoom,
@@ -1042,11 +1030,6 @@ export default function WebIDE({
     // This is now handled by the global WebSocket sync effects above
 
     // Cleanup collaboration on unmount
-    useEffect(() => {
-        return () => {
-            stopCollaboration();
-        };
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Load previous review when switching files
     useEffect(() => {
@@ -1265,34 +1248,14 @@ export default function WebIDE({
                                         </div>
                                     </div>
                                 )}
-                            {activeTab && (
-                                <Button
+                            {hasOtherUsers && (
+                                <Badge
                                     variant="outline"
-                                    size="sm"
-                                    onClick={toggleCollaboration}
-                                    className={cn(
-                                        isCollaborationEnabled
-                                            ? 'bg-green-100 border-green-300 text-green-700 hover:bg-green-200'
-                                            : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200',
-                                    )}
+                                    className="bg-green-100 border-green-300 text-green-700"
                                 >
-                                    {isCollaborationEnabled ? (
-                                        <>
-                                            <Users className="h-4 w-4 mr-1" />
-                                            협업 중 ({connectedUsers.length})
-                                        </>
-                                    ) : isConnecting ? (
-                                        <>
-                                            <Users className="h-4 w-4 mr-1" />
-                                            연결 중...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Users className="h-4 w-4 mr-1" />
-                                            협업 시작
-                                        </>
-                                    )}
-                                </Button>
+                                    <Users className="h-4 w-4 mr-1" />
+                                    협업 중 ({connectedUsers.length}명)
+                                </Badge>
                             )}
                         </div>
                         {activeTab && (
