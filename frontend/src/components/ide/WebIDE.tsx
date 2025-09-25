@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { useCollaboration } from '@/contexts/CollaborationContext';
 
 const Editor = dynamic(
     () =>
@@ -17,7 +16,7 @@ const Editor = dynamic(
         ),
     },
 );
-import { File, X, Save, Plus, FolderOpen, Sparkles, Users } from 'lucide-react';
+import { File, X, Save, Plus, FolderOpen, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -146,64 +145,6 @@ export default function WebIDE({
         updateSession,
         extendSession,
     } = useIdeSessionSocket(projectId);
-
-    // Use CollaborationContext
-    const {
-        isCollaborationEnabled,
-        connectedUsers,
-        currentRoomId,
-        joinRoom,
-        hasOtherUsers,
-        setupMonacoBinding,
-    } = useCollaboration();
-
-    // Auto-join room when activeTab changes (always enabled in auto mode)
-    useEffect(() => {
-        if (activeTab) {
-            const roomId = `project-${projectId}-file-${activeTab.id}`;
-            if (currentRoomId !== roomId) {
-                joinRoom(roomId);
-            }
-        }
-    }, [
-        activeTab?.id,
-        activeTab?.name,
-        activeTab,
-        currentRoomId,
-        projectId,
-        joinRoom,
-    ]);
-
-    // Setup collaboration binding when room or editor changes
-    useEffect(() => {
-        let collaborationCleanup: (() => void) | null = null;
-
-        const setupCollaboration = async () => {
-            if (
-                editorRef.current &&
-                activeTab &&
-                currentRoomId &&
-                setupMonacoBinding
-            ) {
-                try {
-                    collaborationCleanup = await setupMonacoBinding(
-                        editorRef.current,
-                        currentRoomId,
-                    );
-                } catch (error) {
-                    console.error('Failed to setup collaboration:', error);
-                }
-            }
-        };
-
-        setupCollaboration();
-
-        return () => {
-            if (collaborationCleanup) {
-                collaborationCleanup();
-            }
-        };
-    }, [currentRoomId, activeTab?.id, activeTab, setupMonacoBinding]);
 
     const getLanguageFromPath = useCallback((path: string): string => {
         const ext = path.split('.').pop()?.toLowerCase();
@@ -722,6 +663,7 @@ export default function WebIDE({
         (value: string | undefined) => {
             if (!activeTabId || value === undefined) return;
 
+            // Update tab state for React rendering
             setOpenTabs((prev) =>
                 prev.map((tab) =>
                     tab.id === activeTabId
@@ -1061,8 +1003,6 @@ export default function WebIDE({
 
     // This is now handled by the global WebSocket sync effects above
 
-    // Cleanup collaboration on unmount
-
     // Load previous review when switching files
     useEffect(() => {
         const loadPreviousReview = async () => {
@@ -1249,47 +1189,6 @@ export default function WebIDE({
                         )}
                     </div>
                     <div className="ml-auto flex items-center space-x-2">
-                        {/* Collaboration Controls */}
-                        <div className="flex items-center space-x-2">
-                            {isCollaborationEnabled &&
-                                connectedUsers.length > 0 && (
-                                    <div className="flex items-center space-x-1">
-                                        <Users className="h-4 w-4 text-green-600" />
-                                        <span className="text-sm text-green-600 font-medium">
-                                            {connectedUsers.length}명 접속
-                                        </span>
-                                        <div className="flex -space-x-1">
-                                            {connectedUsers
-                                                .slice(0, 3)
-                                                .map((user) => (
-                                                    <div
-                                                        key={user.userId}
-                                                        className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs border-2 border-white"
-                                                        title={user.username}
-                                                    >
-                                                        {user.username
-                                                            .charAt(0)
-                                                            .toUpperCase()}
-                                                    </div>
-                                                ))}
-                                            {connectedUsers.length > 3 && (
-                                                <div className="w-6 h-6 rounded-full bg-gray-400 flex items-center justify-center text-white text-xs border-2 border-white">
-                                                    +{connectedUsers.length - 3}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                            {hasOtherUsers && (
-                                <Badge
-                                    variant="outline"
-                                    className="bg-green-100 border-green-300 text-green-700"
-                                >
-                                    <Users className="h-4 w-4 mr-1" />
-                                    협업 중 ({connectedUsers.length}명)
-                                </Badge>
-                            )}
-                        </div>
                         {activeTab && (
                             <Button
                                 variant="outline"
@@ -1401,55 +1300,10 @@ export default function WebIDE({
                                     value={activeTab.content}
                                     onChange={handleEditorChange}
                                     onMount={async (editor) => {
-                                        editorRef.current = editor;
-
-                                        // Import monaco for types
-                                        const _monaco = await import(
-                                            'monaco-editor'
+                                        console.log(
+                                            '[DEBUG] Monaco editor mounted',
                                         );
-
-                                        // Add CSS for collaboration cursors
-                                        const style =
-                                            document.createElement('style');
-                                        style.textContent = `
-                                            .collaboration-cursor {
-                                                position: absolute;
-                                                width: 2px;
-                                                background-color: #3b82f6;
-                                                z-index: 1000;
-                                                pointer-events: none;
-                                            }
-
-                                            .collaboration-cursor::after {
-                                                content: attr(data-username);
-                                                position: absolute;
-                                                top: -20px;
-                                                left: 0;
-                                                background-color: #3b82f6;
-                                                color: white;
-                                                padding: 2px 6px;
-                                                border-radius: 3px;
-                                                font-size: 11px;
-                                                white-space: nowrap;
-                                                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                                            }
-
-                                            .collaboration-selection {
-                                                background-color: rgba(59, 130, 246, 0.2);
-                                                position: absolute;
-                                                pointer-events: none;
-                                                z-index: 999;
-                                            }
-                                        `;
-                                        document.head.appendChild(style);
-
-                                        // Real-time collaboration is now handled by useEffect hook
-                                        // that responds to room changes
-
-                                        // Cleanup on unmount
-                                        editor.onDidDispose(() => {
-                                            style.remove();
-                                        });
+                                        editorRef.current = editor;
                                     }}
                                     options={{
                                         minimap: { enabled: true },

@@ -23,9 +23,6 @@ export class IdeSessionService {
             const serializedState = JSON.stringify(sessionState);
 
             await this.redis.setex(key, this.TTL, serializedState);
-            this.logger.debug(
-                `IDE session saved for user ${userId}, project ${projectId}`,
-            );
         } catch (error) {
             this.logger.error(
                 `Failed to save IDE session: ${error instanceof Error ? error.message : String(error)}`,
@@ -50,9 +47,6 @@ export class IdeSessionService {
             await this.redis.expire(key, this.TTL);
 
             const sessionState = JSON.parse(serializedState) as IdeSessionState;
-            this.logger.debug(
-                `IDE session loaded for user ${userId}, project ${projectId}`,
-            );
 
             return sessionState;
         } catch (error) {
@@ -67,9 +61,6 @@ export class IdeSessionService {
         try {
             const key = this.getSessionKey(userId, projectId);
             await this.redis.del(key);
-            this.logger.debug(
-                `IDE session deleted for user ${userId}, project ${projectId}`,
-            );
         } catch (error) {
             this.logger.error(
                 `Failed to delete IDE session: ${error instanceof Error ? error.message : String(error)}`,
@@ -85,9 +76,6 @@ export class IdeSessionService {
 
             if (exists) {
                 await this.redis.expire(key, this.TTL);
-                this.logger.debug(
-                    `IDE session TTL extended for user ${userId}, project ${projectId}`,
-                );
             }
         } catch (error) {
             this.logger.error(

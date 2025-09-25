@@ -62,9 +62,6 @@ export class IdeSessionGateway
             }
 
             client.userId = payload.sub;
-            this.logger.log(
-                `IDE session client connected: ${user.username} (${client.userId})`,
-            );
 
             // Notify client that authentication is complete
             client.emit('auth:success', {
@@ -93,8 +90,6 @@ export class IdeSessionGateway
             clearTimeout(timeout);
             this.sessionUpdateTimeouts.delete(timeoutKey);
         }
-
-        this.logger.debug(`IDE session client disconnected: ${client.userId}`);
     }
 
     @SubscribeMessage('session:get')

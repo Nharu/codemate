@@ -34,10 +34,6 @@ export class AiService {
         const startTime = Date.now();
 
         try {
-            this.logger.log(
-                `Starting code review for ${request.language} code`,
-            );
-
             const prompt = this.buildPrompt(request);
             const response = await this.anthropic.messages.create({
                 model: 'claude-sonnet-4-20250514',
@@ -57,10 +53,6 @@ export class AiService {
                 text,
                 Date.now() - startTime,
                 request.code,
-            );
-
-            this.logger.log(
-                `Code review completed in ${reviewResult.reviewTime}ms`,
             );
 
             return reviewResult;

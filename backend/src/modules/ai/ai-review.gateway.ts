@@ -75,9 +75,6 @@ export class AiReviewGateway
             }
 
             client.userId = payload.sub;
-            this.logger.log(
-                `AI Review client connected: ${user.username} (${client.userId})`,
-            );
 
             client.emit('auth:success', {
                 userId: client.userId,
@@ -104,8 +101,6 @@ export class AiReviewGateway
                 this.activeReviews.set(requestId, false);
             }
         }
-
-        this.logger.debug(`AI Review client disconnected: ${client.userId}`);
     }
 
     @SubscribeMessage('review:start')
@@ -216,10 +211,6 @@ export class AiReviewGateway
                 result,
                 progress: 100,
             });
-
-            this.logger.log(
-                `AI Review completed for user ${client.userId}, request ${data.requestId}`,
-            );
         } catch (error) {
             this.logger.error('AI Review failed:', error);
             client.emit('review:error', {
@@ -247,9 +238,5 @@ export class AiReviewGateway
         client.emit('review:cancelled', {
             requestId: data.requestId,
         });
-
-        this.logger.log(
-            `AI Review cancelled for user ${client.userId}, request ${data.requestId}`,
-        );
     }
 }
