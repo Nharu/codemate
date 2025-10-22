@@ -106,14 +106,13 @@ dist/
 ehthumbs.db
 Thumbs.db
 
-# Docker
-.dockerignore
-
 # Terraform
 *.tfstate
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
+terraform.tfvars
+tfplan
 
 # uploads
 uploads/
