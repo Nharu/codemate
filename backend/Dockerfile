@@ -5,15 +5,18 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies
+# Copy monorepo root files for dependency installation
 COPY package*.json ./
-RUN npm ci
+COPY backend/package*.json ./backend/
 
-# Copy source code
-COPY . .
+# Install dependencies (monorepo workspace)
+RUN npm ci --workspace=backend
+
+# Copy backend source code
+COPY backend ./backend
 
 # Build application
-RUN npm run build
+RUN npm run build --workspace=backend
 
 # ==================================
 # Production Stage
@@ -22,13 +25,17 @@ FROM node:22-alpine AS production
 
 WORKDIR /app
 
-# Install production dependencies only
+# Copy monorepo root files for dependency installation
 COPY package*.json ./
-RUN npm ci --only=production && \
+COPY backend/package*.json ./backend/
+
+# Install production dependencies only (monorepo workspace)
+RUN npm ci --workspace=backend --omit=dev && \
     npm cache clean --force
 
 # Copy built application from builder
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/backend/dist ./backend/dist
+COPY --from=builder /app/backend/package*.json ./backend/
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
@@ -45,4 +52,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
     CMD node -e "require('http').get('http://localhost:3001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); })"
 
 # Start application
-CMD ["node", "dist/main"]
+CMD ["node", "backend/dist/main"]

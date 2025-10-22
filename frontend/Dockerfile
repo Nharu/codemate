@@ -5,9 +5,12 @@ FROM node:22-alpine AS deps
 
 WORKDIR /app
 
-# Install dependencies
+# Copy monorepo root files for dependency installation
 COPY package*.json ./
-RUN npm ci
+COPY frontend/package*.json ./frontend/
+
+# Install dependencies (monorepo workspace)
+RUN npm ci --workspace=frontend
 
 # ==================================
 # Build Stage
@@ -18,16 +21,17 @@ WORKDIR /app
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/frontend/node_modules ./frontend/node_modules
 
-# Copy source code
-COPY . .
+# Copy frontend source code
+COPY frontend ./frontend
 
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
 # Build application
-RUN npm run build
+RUN npm run build --workspace=frontend
 
 # ==================================
 # Production Stage
@@ -44,9 +48,9 @@ RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001
 
 # Copy only necessary files from builder
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder /app/frontend/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/static ./.next/static
 
 USER nextjs
 
