@@ -10,7 +10,7 @@ COPY package*.json ./
 COPY frontend/package*.json ./frontend/
 
 # Install dependencies (monorepo workspace)
-RUN npm ci --workspace=frontend
+RUN npm ci --workspace=frontend --ignore-scripts
 
 # ==================================
 # Build Stage

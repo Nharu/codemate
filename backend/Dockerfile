@@ -10,7 +10,7 @@ COPY package*.json ./
 COPY backend/package*.json ./backend/
 
 # Install dependencies (monorepo workspace)
-RUN npm ci --workspace=backend
+RUN npm ci --workspace=backend --ignore-scripts
 
 # Copy backend source code
 COPY backend ./backend
@@ -30,7 +30,7 @@ COPY package*.json ./
 COPY backend/package*.json ./backend/
 
 # Install production dependencies only (monorepo workspace)
-RUN npm ci --workspace=backend --omit=dev && \
+RUN npm ci --workspace=backend --omit=dev --ignore-scripts && \
     npm cache clean --force
 
 # Copy built application from builder
