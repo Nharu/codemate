@@ -19,6 +19,10 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+# Copy package.json files for workspace commands
+COPY package*.json ./
+COPY frontend/package*.json ./frontend/
+
 # Copy dependencies from deps stage (workspace installs to root node_modules)
 COPY --from=deps /app/node_modules ./node_modules
 
