@@ -16,7 +16,7 @@ const Editor = dynamic(
         ),
     },
 );
-import { File, X, Save, Plus, FolderOpen, Sparkles } from 'lucide-react';
+import { File, X, Save, Plus, FolderOpen, Sparkles, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -40,6 +40,8 @@ import {
 import { useCodeReviewWithSocket } from '@/hooks/useCodeReviewWithSocket';
 import apiClient from '@/lib/api-client';
 import type { editor } from 'monaco-editor';
+import { useCodeExecution } from '@/hooks/useCodeExecution';
+import CodeExecutionPanel from './CodeExecutionPanel';
 
 interface OpenTab {
     id: string;
@@ -102,8 +104,18 @@ export default function WebIDE({
     const [reviewingTabPath, setReviewingTabPath] = useState<string | null>(
         null,
     );
+    const [isExecutionPanelOpen, setIsExecutionPanelOpen] = useState(false);
 
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+
+    // Code execution hook
+    const {
+        runCode,
+        clearResult,
+        isExecuting,
+        executionResult,
+        pyodideLoading,
+    } = useCodeExecution();
 
     // Zustand store for code review state management
     const {
@@ -484,6 +496,45 @@ export default function WebIDE({
         },
         [activeTab],
     );
+
+    const handleRunCode = useCallback(async () => {
+        if (!activeTab) {
+            setAlertMessage('실행할 파일을 선택해주세요.');
+            setIsAlertModalOpen(true);
+            return;
+        }
+
+        // Only allow Python files
+        if (activeTab.language !== 'python') {
+            setAlertMessage('현재 파이썬 파일만 실행 가능합니다.');
+            setIsAlertModalOpen(true);
+            return;
+        }
+
+        if (!activeTab.content.trim()) {
+            setAlertMessage('빈 파일은 실행할 수 없습니다.');
+            setIsAlertModalOpen(true);
+            return;
+        }
+
+        if (pyodideLoading) {
+            setAlertMessage(
+                'Python 실행 환경을 로딩 중입니다. 잠시 후 다시 시도해주세요.',
+            );
+            setIsAlertModalOpen(true);
+            return;
+        }
+
+        // Open execution panel and run code
+        setIsExecutionPanelOpen(true);
+
+        try {
+            await runCode(activeTab.content);
+        } catch (error) {
+            // Error is already handled in useCodeExecution
+            console.error('Code execution failed:', error);
+        }
+    }, [activeTab, pyodideLoading, runCode]);
 
     const handleOpenReviewPanel = useCallback(async () => {
         // Just open the panel to show current progress or existing results
@@ -1163,200 +1214,239 @@ export default function WebIDE({
             </div>
 
             {/* Main Editor Area */}
-            <div className="flex-1 flex flex-col min-w-0">
-                {/* Top Bar */}
-                <div className="h-12 bg-white border-b flex items-center px-4 flex-shrink-0">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                    >
-                        <FolderOpen className="h-4 w-4" />
-                    </Button>
-                    <Separator orientation="vertical" className="mx-2 h-6" />
-                    <div className="flex items-center space-x-2">
-                        <span className="text-sm font-medium">웹 IDE</span>
-                        {activeTab && (
-                            <>
-                                <Separator
-                                    orientation="vertical"
-                                    className="h-4"
-                                />
-                                <Badge variant="outline">
-                                    {activeTab.language}
-                                </Badge>
-                            </>
-                        )}
+            <div className="flex-1 flex flex-row min-w-0">
+                {/* Editor Section */}
+                <div className="flex-1 flex flex-col min-w-0">
+                    {/* Top Bar */}
+                    <div className="h-12 bg-white border-b flex items-center px-4 flex-shrink-0">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                                setSidebarCollapsed(!sidebarCollapsed)
+                            }
+                        >
+                            <FolderOpen className="h-4 w-4" />
+                        </Button>
+                        <Separator
+                            orientation="vertical"
+                            className="mx-2 h-6"
+                        />
+                        <div className="flex items-center space-x-2">
+                            <span className="text-sm font-medium">웹 IDE</span>
+                            {activeTab && (
+                                <>
+                                    <Separator
+                                        orientation="vertical"
+                                        className="h-4"
+                                    />
+                                    <Badge variant="outline">
+                                        {activeTab.language}
+                                    </Badge>
+                                </>
+                            )}
+                        </div>
+                        <div className="ml-auto flex items-center space-x-2">
+                            {activeTab && activeTab.language === 'python' && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleRunCode}
+                                    disabled={isExecuting || pyodideLoading}
+                                    className="bg-gradient-to-r from-green-600 to-emerald-600 text-white border-none hover:from-green-700 hover:to-emerald-700 disabled:opacity-50"
+                                >
+                                    <Play className="h-4 w-4 mr-1" />
+                                    {pyodideLoading
+                                        ? '로딩 중...'
+                                        : isExecuting
+                                          ? '실행 중...'
+                                          : '실행'}
+                                </Button>
+                            )}
+                            {activeTab && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleOpenReviewPanel}
+                                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white border-none hover:from-blue-700 hover:to-purple-700"
+                                >
+                                    <Sparkles className="h-4 w-4 mr-1" />
+                                    AI 리뷰
+                                </Button>
+                            )}
+                        </div>
                     </div>
-                    <div className="ml-auto flex items-center space-x-2">
-                        {activeTab && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleOpenReviewPanel}
-                                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white border-none hover:from-blue-700 hover:to-purple-700"
-                            >
-                                <Sparkles className="h-4 w-4 mr-1" />
-                                AI 리뷰
-                            </Button>
-                        )}
-                    </div>
-                </div>
 
-                {/* Tabs */}
-                {openTabs.length > 0 && (
-                    <div className="bg-gray-100 border-b flex overflow-x-auto flex-shrink-0">
-                        {openTabs.map((tab) => (
-                            <div
-                                key={tab.id}
-                                className={cn(
-                                    'flex items-center px-3 py-2 border-r cursor-pointer min-w-[120px] max-w-[200px]',
-                                    activeTabId === tab.id
-                                        ? 'bg-white border-b-2 border-blue-500'
-                                        : 'hover:bg-gray-50',
-                                )}
-                                onClick={async () => {
-                                    // Clear AI review decorations when switching tabs
-                                    if (editorRef.current) {
-                                        const monaco = await import(
-                                            'monaco-editor'
-                                        );
-                                        const editor = editorRef.current;
-                                        const model = editor.getModel();
-                                        if (model) {
-                                            // Clear only AI review markers
-                                            monaco.editor.setModelMarkers(
-                                                model,
-                                                'ai-review',
-                                                [],
+                    {/* Tabs */}
+                    {openTabs.length > 0 && (
+                        <div className="bg-gray-100 border-b flex overflow-x-auto flex-shrink-0">
+                            {openTabs.map((tab) => (
+                                <div
+                                    key={tab.id}
+                                    className={cn(
+                                        'flex items-center px-3 py-2 border-r cursor-pointer min-w-[120px] max-w-[200px]',
+                                        activeTabId === tab.id
+                                            ? 'bg-white border-b-2 border-blue-500'
+                                            : 'hover:bg-gray-50',
+                                    )}
+                                    onClick={async () => {
+                                        // Clear AI review decorations when switching tabs
+                                        if (editorRef.current) {
+                                            const monaco = await import(
+                                                'monaco-editor'
                                             );
-
-                                            // Clear AI review decorations by finding and removing them
-                                            const allDecorations =
-                                                model.getAllDecorations();
-                                            const aiReviewDecorations =
-                                                allDecorations.filter((d) =>
-                                                    d.options.className?.includes(
-                                                        'ai-review-decoration',
-                                                    ),
-                                                );
-                                            if (
-                                                aiReviewDecorations.length > 0
-                                            ) {
-                                                editor.deltaDecorations(
-                                                    aiReviewDecorations.map(
-                                                        (d) => d.id,
-                                                    ),
+                                            const editor = editorRef.current;
+                                            const model = editor.getModel();
+                                            if (model) {
+                                                // Clear only AI review markers
+                                                monaco.editor.setModelMarkers(
+                                                    model,
+                                                    'ai-review',
                                                     [],
                                                 );
+
+                                                // Clear AI review decorations by finding and removing them
+                                                const allDecorations =
+                                                    model.getAllDecorations();
+                                                const aiReviewDecorations =
+                                                    allDecorations.filter((d) =>
+                                                        d.options.className?.includes(
+                                                            'ai-review-decoration',
+                                                        ),
+                                                    );
+                                                if (
+                                                    aiReviewDecorations.length >
+                                                    0
+                                                ) {
+                                                    editor.deltaDecorations(
+                                                        aiReviewDecorations.map(
+                                                            (d) => d.id,
+                                                        ),
+                                                        [],
+                                                    );
+                                                }
                                             }
                                         }
-                                    }
 
-                                    // Clear review tracking when switching tabs (if switching away from reviewing tab)
-                                    if (
-                                        reviewingTabPath &&
-                                        reviewingTabPath !== tab.path
-                                    ) {
-                                        setReviewingTabPath(null);
-                                    }
+                                        // Clear review tracking when switching tabs (if switching away from reviewing tab)
+                                        if (
+                                            reviewingTabPath &&
+                                            reviewingTabPath !== tab.path
+                                        ) {
+                                            setReviewingTabPath(null);
+                                        }
 
-                                    // Switch to new tab
-                                    setActiveTabId(tab.id);
+                                        // Switch to new tab
+                                        setActiveTabId(tab.id);
 
-                                    // The existing useEffect will handle loading review data for the new file
-                                }}
-                                title={tab.path} // Show full path on hover
-                            >
-                                <File className="h-4 w-4 mr-2 flex-shrink-0" />
-                                <span className="text-sm truncate">
-                                    {getTabDisplayName(tab)}
-                                    {tab.isDirty && '*'}
-                                </span>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="ml-2 h-4 w-4 p-0 hover:bg-gray-200"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        closeTab(tab.id);
+                                        // The existing useEffect will handle loading review data for the new file
                                     }}
+                                    title={tab.path} // Show full path on hover
                                 >
-                                    <X className="h-3 w-3" />
-                                </Button>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* Editor */}
-                <div className="flex-1 min-h-0">
-                    {activeTab ? (
-                        <div className="h-full flex flex-col">
-                            <div className="flex-1 min-h-0">
-                                <Editor
-                                    height="100%"
-                                    language={activeTab.language}
-                                    value={activeTab.content}
-                                    onChange={handleEditorChange}
-                                    onMount={async (editor) => {
-                                        console.log(
-                                            '[DEBUG] Monaco editor mounted',
-                                        );
-                                        editorRef.current = editor;
-                                    }}
-                                    options={{
-                                        minimap: { enabled: true },
-                                        fontSize: 14,
-                                        lineNumbers: 'on',
-                                        roundedSelection: false,
-                                        scrollBeyondLastLine: false,
-                                        automaticLayout: true,
-                                        wordWrap: 'on',
-                                        tabSize: 2,
-                                        insertSpaces: true,
-                                    }}
-                                    theme="vs-dark"
-                                />
-                            </div>
-                            {/* Status Bar */}
-                            <div className="h-6 bg-blue-600 text-white px-4 flex items-center justify-between text-xs flex-shrink-0">
-                                <div className="flex items-center space-x-4">
-                                    <span>{activeTab.path}</span>
-                                    <span>{activeTab.language}</span>
+                                    <File className="h-4 w-4 mr-2 flex-shrink-0" />
+                                    <span className="text-sm truncate">
+                                        {getTabDisplayName(tab)}
+                                        {tab.isDirty && '*'}
+                                    </span>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="ml-2 h-4 w-4 p-0 hover:bg-gray-200"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            closeTab(tab.id);
+                                        }}
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </Button>
                                 </div>
-                                <div className="flex items-center space-x-2">
-                                    {activeTab.isDirty && (
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-5 px-2 text-white hover:bg-blue-700"
-                                            onClick={() =>
-                                                saveTab(activeTab.id)
-                                            }
-                                        >
-                                            <Save className="h-3 w-3 mr-1" />
-                                            저장 (Ctrl+S)
-                                        </Button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="h-full flex items-center justify-center text-gray-500">
-                            <div className="text-center">
-                                <File className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                                <p className="text-lg font-medium mb-2">
-                                    편집할 파일을 선택하세요
-                                </p>
-                                <p className="text-sm">
-                                    좌측 파일 탐색기에서 파일을 클릭하거나 새
-                                    파일을 만들어보세요
-                                </p>
-                            </div>
+                            ))}
                         </div>
                     )}
+
+                    {/* Editor */}
+                    <div className="flex-1 min-h-0">
+                        {activeTab ? (
+                            <div className="h-full flex flex-col">
+                                <div className="flex-1 min-h-0">
+                                    <Editor
+                                        height="100%"
+                                        language={activeTab.language}
+                                        value={activeTab.content}
+                                        onChange={handleEditorChange}
+                                        onMount={async (editor) => {
+                                            console.log(
+                                                '[DEBUG] Monaco editor mounted',
+                                            );
+                                            editorRef.current = editor;
+                                        }}
+                                        options={{
+                                            minimap: { enabled: true },
+                                            fontSize: 14,
+                                            lineNumbers: 'on',
+                                            roundedSelection: false,
+                                            scrollBeyondLastLine: false,
+                                            automaticLayout: true,
+                                            wordWrap: 'on',
+                                            tabSize: 2,
+                                            insertSpaces: true,
+                                        }}
+                                        theme="vs-dark"
+                                    />
+                                </div>
+                                {/* Status Bar */}
+                                <div className="h-6 bg-blue-600 text-white px-4 flex items-center justify-between text-xs flex-shrink-0">
+                                    <div className="flex items-center space-x-4">
+                                        <span>{activeTab.path}</span>
+                                        <span>{activeTab.language}</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        {activeTab.isDirty && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-5 px-2 text-white hover:bg-blue-700"
+                                                onClick={() =>
+                                                    saveTab(activeTab.id)
+                                                }
+                                            >
+                                                <Save className="h-3 w-3 mr-1" />
+                                                저장 (Ctrl+S)
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="h-full flex items-center justify-center text-gray-500">
+                                <div className="text-center">
+                                    <File className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                                    <p className="text-lg font-medium mb-2">
+                                        편집할 파일을 선택하세요
+                                    </p>
+                                    <p className="text-sm">
+                                        좌측 파일 탐색기에서 파일을 클릭하거나
+                                        새 파일을 만들어보세요
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
+
+                {/* Code Execution Panel */}
+                {isExecutionPanelOpen && (
+                    <div className="w-[500px] min-w-[400px] max-w-[600px] h-full flex-shrink-0">
+                        <CodeExecutionPanel
+                            result={executionResult}
+                            isExecuting={isExecuting}
+                            onClose={() => {
+                                setIsExecutionPanelOpen(false);
+                                clearResult();
+                            }}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* New File Modal */}
