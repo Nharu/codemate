@@ -19,9 +19,8 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependencies from deps stage
+# Copy dependencies from deps stage (workspace installs to root node_modules)
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/frontend/node_modules ./frontend/node_modules
 
 # Copy frontend source code
 COPY frontend ./frontend
