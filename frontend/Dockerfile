@@ -40,6 +40,10 @@ ENV NODE_ENV=production
 # Rebuild lightningcss for current stage (native binaries need to be rebuilt in each stage)
 RUN npm rebuild lightningcss
 
+# Debug: Check which lightningcss binaries are available
+RUN ls -la /app/node_modules/lightningcss/ || true && \
+    find /app/node_modules/lightningcss -name "*.node" || true
+
 # Build application (use build:ci to avoid Turbopack issues in CI)
 RUN npm run build:ci --workspace=frontend
 
