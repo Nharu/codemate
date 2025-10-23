@@ -14,6 +14,7 @@ ENV CI=true
 
 # Install dependencies (monorepo workspace) with optional dependencies
 RUN npm ci --workspace=frontend --include=optional && \
+    npm install --no-save lightningcss-linux-x64-gnu@1.30.1 && \
     npm rebuild lightningcss
 
 # ==================================
@@ -44,6 +45,7 @@ RUN npm rebuild lightningcss
 RUN ls -la /app/node_modules/lightningcss/ || true && \
     ls -la /app/node_modules/lightningcss/node/ || true && \
     find /app/node_modules/lightningcss -name "*.node" || true && \
+    ls -la /app/node_modules/ | grep lightningcss || true && \
     cat /app/node_modules/lightningcss/package.json | grep -A10 "optionalDependencies" || true
 
 # Build application (use build:ci to avoid Turbopack issues in CI)
