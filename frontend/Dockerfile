@@ -12,8 +12,8 @@ COPY frontend/package*.json ./frontend/
 # Set CI environment to skip husky install
 ENV CI=true
 
-# Install dependencies (monorepo workspace)
-RUN npm ci --workspace=frontend && \
+# Install dependencies (monorepo workspace) with optional dependencies
+RUN npm ci --workspace=frontend --include=optional && \
     npm rebuild lightningcss
 
 # ==================================
