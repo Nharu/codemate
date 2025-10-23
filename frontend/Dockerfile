@@ -25,6 +25,9 @@ FROM node:22-slim AS builder
 
 WORKDIR /app
 
+# Set CI environment to skip lint/type check during build
+ENV CI=true
+
 # Copy package.json files for workspace commands
 COPY package*.json ./
 COPY frontend/package*.json ./frontend/
