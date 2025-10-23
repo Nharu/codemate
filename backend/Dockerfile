@@ -9,8 +9,11 @@ WORKDIR /app
 COPY package*.json ./
 COPY backend/package*.json ./backend/
 
+# Set CI environment to skip husky install
+ENV CI=true
+
 # Install dependencies (monorepo workspace)
-RUN npm ci --workspace=backend --ignore-scripts
+RUN npm ci --workspace=backend
 
 # Copy backend source code
 COPY backend ./backend
@@ -29,8 +32,11 @@ WORKDIR /app
 COPY package*.json ./
 COPY backend/package*.json ./backend/
 
+# Set CI environment to skip husky install
+ENV CI=true
+
 # Install production dependencies only (monorepo workspace)
-RUN npm ci --workspace=backend --omit=dev --ignore-scripts && \
+RUN npm ci --workspace=backend --omit=dev && \
     npm cache clean --force
 
 # Copy built application from builder

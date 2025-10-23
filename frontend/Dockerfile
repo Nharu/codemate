@@ -9,8 +9,11 @@ WORKDIR /app
 COPY package*.json ./
 COPY frontend/package*.json ./frontend/
 
+# Set CI environment to skip husky install
+ENV CI=true
+
 # Install dependencies (monorepo workspace)
-RUN npm ci --workspace=frontend --ignore-scripts
+RUN npm ci --workspace=frontend
 
 # ==================================
 # Build Stage
