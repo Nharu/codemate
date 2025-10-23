@@ -39,8 +39,10 @@ COPY frontend ./frontend
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# Rebuild native binaries for current stage
-RUN npm rebuild lightningcss && \
+# Install platform-specific binaries and rebuild for builder stage
+RUN npm install --no-save lightningcss-linux-x64-gnu@1.30.1 && \
+    npm install --no-save @tailwindcss/oxide-linux-x64-gnu@4.1.13 && \
+    npm rebuild lightningcss && \
     npm rebuild @tailwindcss/oxide
 
 # Build application (use build:ci to avoid Turbopack issues in CI)
