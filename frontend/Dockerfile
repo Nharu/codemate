@@ -13,7 +13,8 @@ COPY frontend/package*.json ./frontend/
 ENV CI=true
 
 # Install dependencies (monorepo workspace)
-RUN npm ci --workspace=frontend
+RUN npm ci --workspace=frontend && \
+    npm rebuild lightningcss --workspace=frontend
 
 # ==================================
 # Build Stage
