@@ -40,8 +40,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 # Set placeholder API URL for build (will be overridden at runtime)
 ENV NEXT_PUBLIC_API_URL=http://localhost:3001
-# Increase Node.js memory limit for build (8GB)
-ENV NODE_OPTIONS="--max-old-space-size=8192"
 
 # Install platform-specific binaries and rebuild for builder stage
 RUN npm install --no-save lightningcss-linux-x64-gnu@1.30.1 && \

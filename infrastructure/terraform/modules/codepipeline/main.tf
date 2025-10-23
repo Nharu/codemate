@@ -276,7 +276,7 @@ resource "aws_codebuild_project" "frontend" {
   }
 
   environment {
-    compute_type                = "BUILD_GENERAL1_LARGE"
+    compute_type                = "BUILD_GENERAL1_MEDIUM"
     image                       = "aws/codebuild/standard:7.0"
     type                        = "LINUX_CONTAINER"
     image_pull_credentials_type = "CODEBUILD"
