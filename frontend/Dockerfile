@@ -42,7 +42,9 @@ RUN npm rebuild lightningcss
 
 # Debug: Check which lightningcss binaries are available
 RUN ls -la /app/node_modules/lightningcss/ || true && \
-    find /app/node_modules/lightningcss -name "*.node" || true
+    ls -la /app/node_modules/lightningcss/node/ || true && \
+    find /app/node_modules/lightningcss -name "*.node" || true && \
+    cat /app/node_modules/lightningcss/package.json | grep -A10 "optionalDependencies" || true
 
 # Build application (use build:ci to avoid Turbopack issues in CI)
 RUN npm run build:ci --workspace=frontend
