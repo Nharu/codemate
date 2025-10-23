@@ -37,6 +37,9 @@ COPY frontend ./frontend
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+# Rebuild lightningcss for current stage (native binaries need to be rebuilt in each stage)
+RUN npm rebuild lightningcss --workspace=frontend
+
 # Build application (use build:ci to avoid Turbopack issues in CI)
 RUN npm run build:ci --workspace=frontend
 
