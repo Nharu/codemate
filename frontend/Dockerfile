@@ -33,8 +33,8 @@ COPY frontend ./frontend
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# Build application
-RUN npm run build --workspace=frontend
+# Build application (use build:ci to avoid Turbopack issues in CI)
+RUN npm run build:ci --workspace=frontend
 
 # ==================================
 # Production Stage
