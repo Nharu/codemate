@@ -1,7 +1,7 @@
 # ==================================
 # Dependencies Stage
 # ==================================
-FROM node:22-alpine AS deps
+FROM node:22-slim AS deps
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ RUN npm ci --workspace=frontend && \
 # ==================================
 # Build Stage
 # ==================================
-FROM node:22-alpine AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -43,7 +43,7 @@ RUN npm run build:ci --workspace=frontend
 # ==================================
 # Production Stage
 # ==================================
-FROM node:22-alpine AS production
+FROM node:22-slim AS production
 
 WORKDIR /app
 
@@ -51,8 +51,8 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Create non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001
+RUN groupadd --gid 1001 nodejs && \
+    useradd --uid 1001 --gid nodejs --shell /bin/bash --create-home nextjs
 
 # Copy only necessary files from builder
 COPY --from=builder /app/frontend/public ./public
