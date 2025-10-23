@@ -15,6 +15,7 @@ ENV CI=true
 # Install dependencies (monorepo workspace) with optional dependencies
 RUN npm ci --workspace=frontend --include=optional && \
     npm install --no-save lightningcss-linux-x64-gnu@1.30.1 && \
+    npm install --no-save @tailwindcss/oxide-linux-x64-gnu@4.1.13 && \
     npm rebuild lightningcss
 
 # ==================================
@@ -38,12 +39,9 @@ COPY frontend ./frontend
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# Rebuild lightningcss for current stage (native binaries need to be rebuilt in each stage)
-RUN npm rebuild lightningcss
-
-# Debug: Check which binaries are available
-RUN ls -la /app/node_modules/ | grep -E "(lightningcss|tailwindcss|oxide)" || true && \
-    cat /app/node_modules/@tailwindcss/oxide/package.json | grep -A10 "optionalDependencies" || true
+# Rebuild native binaries for current stage
+RUN npm rebuild lightningcss && \
+    npm rebuild @tailwindcss/oxide
 
 # Build application (use build:ci to avoid Turbopack issues in CI)
 RUN npm run build:ci --workspace=frontend
