@@ -51,7 +51,10 @@ RUN npm install --no-save lightningcss-linux-x64-gnu@1.30.1 && \
     npm rebuild @tailwindcss/oxide
 
 # Build application (use build:ci to avoid Turbopack issues in CI)
-RUN npm run build:ci --workspace=frontend
+RUN npm run build:ci --workspace=frontend && \
+    echo "=== Checking standalone build structure ===" && \
+    ls -la /app/frontend/.next/standalone/ && \
+    find /app/frontend/.next/standalone -name "server.js" -type f
 
 # ==================================
 # Production Stage
