@@ -6,6 +6,7 @@ env:
     IMAGE_REPO_NAME: codemate-dev-frontend
   parameter-store:
     AWS_ACCOUNT_ID: /codemate/dev/aws-account-id
+    API_URL: /codemate/dev/frontend-api-url
 
 phases:
   pre_build:
@@ -20,7 +21,8 @@ phases:
     commands:
       - echo Build started on `date`
       - echo Building the Docker image...
-      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG -f frontend/Dockerfile .
+      - echo Using API_URL=$API_URL
+      - docker build --build-arg NEXT_PUBLIC_API_URL=$API_URL -t $IMAGE_REPO_NAME:$IMAGE_TAG -f frontend/Dockerfile .
       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $IMAGE_URI
       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $LATEST_URI
 
