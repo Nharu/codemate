@@ -22,6 +22,10 @@ import { ProjectMember } from 'src/modules/projects/project-member.entity';
                 synchronize:
                     configService.get<string>('NODE_ENV') !== 'production',
                 logging: false,
+                ssl:
+                    configService.get<string>('NODE_ENV') === 'production'
+                        ? { rejectUnauthorized: false }
+                        : false,
             }),
             inject: [ConfigService],
         }),
