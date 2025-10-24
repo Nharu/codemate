@@ -69,7 +69,8 @@ RUN groupadd --gid 1001 nodejs && \
 
 # Copy only necessary files from builder
 COPY --from=builder /app/frontend/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/standalone/codemate/frontend ./
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/standalone/codemate/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/static ./.next/static
 
 USER nextjs
