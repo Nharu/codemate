@@ -51,10 +51,7 @@ RUN npm install --no-save lightningcss-linux-x64-gnu@1.30.1 && \
     npm rebuild @tailwindcss/oxide
 
 # Build application (use build:ci to avoid Turbopack issues in CI)
-RUN npm run build:ci --workspace=frontend && \
-    echo "=== Checking standalone build structure ===" && \
-    ls -la /app/frontend/.next/standalone/ && \
-    find /app/frontend/.next/standalone -name "server.js" -type f
+RUN npm run build:ci --workspace=frontend
 
 # ==================================
 # Production Stage
@@ -72,8 +69,8 @@ RUN groupadd --gid 1001 nodejs && \
 
 # Copy only necessary files from builder
 COPY --from=builder /app/frontend/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/standalone/codemate/frontend ./
-COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/standalone/codemate/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/standalone/app/frontend ./
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/standalone/app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/static ./.next/static
 
 USER nextjs
