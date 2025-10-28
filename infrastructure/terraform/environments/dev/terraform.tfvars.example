@@ -1,0 +1,62 @@
+# AWS Configuration
+aws_region     = "ap-northeast-2"
+aws_profile    = "codemate" # AWS CLI profile name
+aws_account_id = "YOUR_AWS_ACCOUNT_ID"
+environment    = "dev"
+project_name   = "codemate"
+domain_name    = "code1398.io"
+subdomain      = "codemate"
+
+# VPC Configuration
+vpc_cidr           = "10.0.0.0/16"
+availability_zones = ["ap-northeast-2a", "ap-northeast-2c"]
+
+# Database Configuration (Sensitive values - DO NOT commit)
+db_username = "codemate"
+db_password = "CHANGE_ME_STRONG_PASSWORD" # Change this! RDS does not allow @, /, ", or space characters
+db_name     = "codemate"
+
+# S3/MinIO Configuration
+# Note: For AWS S3, endpoint should be empty to use SDK default
+# S3_PUBLIC_URL is the base URL without bucket name (bucket name will be appended by backend)
+# This allows using multiple buckets with the same base URL
+s3_endpoint           = ""                                        # Empty for AWS S3, uses SDK default
+s3_public_url         = "https://s3.ap-northeast-2.amazonaws.com" # Base S3 URL (no bucket name)
+aws_access_key_id     = ""                                        # Empty to use ECS task role credentials
+aws_secret_access_key = ""                                        # Empty to use ECS task role credentials
+
+# Application Secrets (Sensitive values - DO NOT commit)
+anthropic_api_key = "sk-ant-XXXXXXXXXXXXX" # Change this!
+jwt_secret        = "CHANGE_ME_JWT_SECRET" # Change this! Generate with: openssl rand -base64 32
+nextauth_secret   = "CHANGE_ME_RANDOM_SECRET" # Generate with: openssl rand -base64 32
+# nextauth_url is auto-constructed from subdomain and domain_name
+
+# OAuth Provider Credentials (Sensitive values - DO NOT commit)
+github_client_id     = "YOUR_GITHUB_CLIENT_ID"
+github_client_secret = "YOUR_GITHUB_CLIENT_SECRET"
+google_client_id     = "YOUR_GOOGLE_CLIENT_ID"
+google_client_secret = "YOUR_GOOGLE_CLIENT_SECRET"
+
+# CI/CD Configuration
+github_repo   = "YOUR_GITHUB_USERNAME/YOUR_REPO_NAME"
+github_branch = "main"
+
+# ECS Task Configuration
+backend_desired_count  = 1
+frontend_desired_count = 1
+backend_task_cpu       = 256
+backend_task_memory    = 512
+frontend_task_cpu      = 256
+frontend_task_memory   = 512
+
+# Database Configuration
+db_instance_class    = "db.t3.micro"
+db_allocated_storage = 20
+
+# Redis Configuration
+redis_node_type       = "cache.t3.micro"
+redis_num_cache_nodes = 1
+
+# Bastion Configuration
+bastion_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAA..." # Your SSH public key
+bastion_allowed_cidr_blocks = ["0.0.0.0/0"] # For testing - restrict to your IP in production

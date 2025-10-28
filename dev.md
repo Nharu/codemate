@@ -463,16 +463,13 @@ infrastructure/
 │   │   └── terraform.tfvars
 │   ├── staging/
 │   └── prod/
-├── modules/
-│   ├── networking/        # VPC, 서브넷, 보안 그룹
-│   ├── database/         # RDS, ElastiCache
-│   ├── compute/          # ECS, ALB
-│   ├── storage/          # S3, ECR
-│   ├── cicd/            # CodeCommit, CodePipeline
-│   └── monitoring/       # CloudWatch, X-Ray
-└── scripts/
-    ├── deploy.sh
-    └── destroy.sh
+└── modules/
+    ├── networking/        # VPC, 서브넷, 보안 그룹
+    ├── database/         # RDS, ElastiCache
+    ├── compute/          # ECS, ALB
+    ├── storage/          # S3, ECR
+    ├── cicd/            # CodeCommit, CodePipeline
+    └── monitoring/       # CloudWatch, X-Ray
 ```
 
 ### 주요 AWS 리소스

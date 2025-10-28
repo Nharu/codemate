@@ -9,6 +9,17 @@ resource "aws_ssm_parameter" "aws_account_id" {
   })
 }
 
+# SSM Parameter Store - Frontend API URL
+resource "aws_ssm_parameter" "frontend_api_url" {
+  name  = "/codemate/${var.environment}/frontend-api-url"
+  type  = "String"
+  value = var.frontend_api_url
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-frontend-api-url"
+  })
+}
+
 # S3 Bucket for CodePipeline Artifacts
 resource "aws_s3_bucket" "codepipeline_artifacts" {
   bucket = "${var.project_name}-${var.environment}-codepipeline-artifacts"
@@ -179,7 +190,8 @@ resource "aws_iam_role_policy" "codepipeline" {
           "ecs:DescribeTasks",
           "ecs:ListTasks",
           "ecs:RegisterTaskDefinition",
-          "ecs:UpdateService"
+          "ecs:UpdateService",
+          "ecs:TagResource"
         ]
         Resource = "*"
       },
