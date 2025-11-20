@@ -59,6 +59,11 @@ variable "frontend_api_url" {
   type        = string
 }
 
+variable "cdn_domain" {
+  description = "CloudFront CDN domain for static assets"
+  type        = string
+}
+
 variable "tags" {
   description = "Resource tags"
   type        = map(string)

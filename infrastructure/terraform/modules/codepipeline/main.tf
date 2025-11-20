@@ -20,6 +20,17 @@ resource "aws_ssm_parameter" "frontend_api_url" {
   })
 }
 
+# SSM Parameter Store - CDN Domain
+resource "aws_ssm_parameter" "cdn_domain" {
+  name  = "/codemate/${var.environment}/cdn-domain"
+  type  = "String"
+  value = var.cdn_domain
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-cdn-domain"
+  })
+}
+
 # S3 Bucket for CodePipeline Artifacts
 resource "aws_s3_bucket" "codepipeline_artifacts" {
   bucket = "${var.project_name}-${var.environment}-codepipeline-artifacts"

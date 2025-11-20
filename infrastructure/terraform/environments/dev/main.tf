@@ -243,6 +243,9 @@ module "codepipeline" {
 
   # Frontend API URL for build
   frontend_api_url = "https://${var.subdomain}-api.${var.domain_name}"
+
+  # CloudFront CDN domain
+  cdn_domain = var.cloudfront_domain
 }
 
 # ==================================

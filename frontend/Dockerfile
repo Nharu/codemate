@@ -38,13 +38,15 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy frontend source code
 COPY frontend ./frontend
 
-# Build argument for API URL
+# Build arguments
 ARG NEXT_PUBLIC_API_URL=http://localhost:3001
+ARG CDN_DOMAIN
 
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV CDN_DOMAIN=${CDN_DOMAIN}
 
 # Install platform-specific binaries and rebuild for builder stage
 RUN npm install --no-save lightningcss-linux-x64-gnu@1.30.1 && \
