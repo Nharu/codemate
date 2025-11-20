@@ -78,3 +78,40 @@ output "bastion_ssh_command" {
   description = "SSH command to connect to bastion"
   value       = "ssh -i /Users/ian/Documents/grad/codemate-bastion-key ec2-user@${module.bastion.bastion_public_ip}"
 }
+
+# CloudFront Outputs
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID"
+  value       = module.cloudfront.cloudfront_distribution_id
+}
+
+output "cloudfront_domain_name" {
+  description = "CloudFront distribution domain name (use this for Cloudflare DNS CNAME)"
+  value       = module.cloudfront.cloudfront_domain_name
+}
+
+output "cloudfront_url" {
+  description = "CloudFront URL for static assets"
+  value       = "https://${var.cloudfront_domain}"
+}
+
+# ACM Certificate Outputs
+output "acm_certificate_validation_records" {
+  description = "ACM certificate validation DNS records (add these to Cloudflare DNS)"
+  value = {
+    main_cert = {
+      for dvo in aws_acm_certificate.main.domain_validation_options : dvo.domain_name => {
+        name   = dvo.resource_record_name
+        type   = dvo.resource_record_type
+        value  = dvo.resource_record_value
+      }
+    }
+    cloudfront_cert = {
+      for dvo in aws_acm_certificate.cloudfront.domain_validation_options : dvo.domain_name => {
+        name   = dvo.resource_record_name
+        type   = dvo.resource_record_type
+        value  = dvo.resource_record_value
+      }
+    }
+  }
+}

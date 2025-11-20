@@ -232,3 +232,10 @@ variable "bastion_allowed_cidr_blocks" {
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
+
+# CloudFront Configuration
+variable "cloudfront_domain" {
+  description = "CloudFront custom domain name for static assets (e.g., codemate-statics.code1398.io)"
+  type        = string
+  default     = "codemate-statics.code1398.io"
+}

@@ -107,6 +107,26 @@ resource "aws_acm_certificate" "main" {
 }
 
 # ==================================
+# ACM Certificate for CloudFront (us-east-1)
+# ==================================
+# CloudFront requires ACM certificates to be in us-east-1 region
+# Note: Cloudflare에서 DNS 검증 레코드를 수동으로 추가해야 합니다.
+resource "aws_acm_certificate" "cloudfront" {
+  provider = aws.us_east_1
+
+  domain_name       = var.cloudfront_domain
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-cloudfront-cert"
+  }
+}
+
+# ==================================
 # ALB Module
 # ==================================
 module "alb" {
@@ -178,6 +198,7 @@ module "ecs" {
   github_client_secret = var.github_client_secret
   google_client_id     = var.google_client_id
   google_client_secret = var.google_client_secret
+  cloudfront_domain    = var.cloudfront_domain
 }
 
 # ==================================
@@ -222,4 +243,64 @@ module "codepipeline" {
 
   # Frontend API URL for build
   frontend_api_url = "https://${var.subdomain}-api.${var.domain_name}"
+}
+
+# ==================================
+# CloudFront Module
+# ==================================
+module "cloudfront" {
+  source = "../../modules/cloudfront"
+
+  environment  = var.environment
+  project_name = var.project_name
+
+  # S3 bucket configuration
+  s3_bucket_id                     = module.s3.uploads_bucket_name
+  s3_bucket_arn                    = module.s3.uploads_bucket_arn
+  s3_bucket_regional_domain_name   = module.s3.uploads_bucket_regional_domain_name
+
+  # CloudFront domain and certificate
+  domain_name         = var.cloudfront_domain
+  acm_certificate_arn = aws_acm_certificate.cloudfront.arn
+}
+
+# ==================================
+# S3 Bucket Policy for CloudFront (OAI + OAC)
+# ==================================
+# Allows both OAI (legacy) and OAC (new) for zero-downtime migration
+resource "aws_s3_bucket_policy" "cloudfront_access" {
+  bucket = module.s3.uploads_bucket_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      # Legacy OAI access (to be removed after OAC verification)
+      {
+        Sid    = "CloudFrontOAIAccess"
+        Effect = "Allow"
+        Principal = {
+          AWS = module.cloudfront.oai_iam_arn
+        }
+        Action   = "s3:GetObject"
+        Resource = "${module.s3.uploads_bucket_arn}/*"
+      },
+      # New OAC access (recommended by AWS)
+      {
+        Sid    = "AllowCloudFrontServicePrincipalReadOnly"
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudfront.amazonaws.com"
+        }
+        Action   = "s3:GetObject"
+        Resource = "${module.s3.uploads_bucket_arn}/*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = module.cloudfront.cloudfront_distribution_arn
+          }
+        }
+      }
+    ]
+  })
+
+  depends_on = [module.cloudfront]
 }

@@ -30,3 +30,18 @@ provider "aws" {
     }
   }
 }
+
+# CloudFront requires ACM certificates in us-east-1
+provider "aws" {
+  alias   = "us_east_1"
+  region  = "us-east-1"
+  profile = var.aws_profile
+
+  default_tags {
+    tags = {
+      Environment = var.environment
+      Project     = var.project_name
+      ManagedBy   = "Terraform"
+    }
+  }
+}

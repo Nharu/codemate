@@ -327,6 +327,10 @@ resource "aws_ecs_task_definition" "frontend" {
         {
           name  = "GOOGLE_CLIENT_SECRET"
           value = var.google_client_secret
+        },
+        {
+          name  = "CDN_DOMAIN"
+          value = var.cloudfront_domain
         }
       ]
 

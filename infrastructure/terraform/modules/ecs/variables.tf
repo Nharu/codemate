@@ -208,3 +208,8 @@ variable "google_client_secret" {
   type        = string
   sensitive   = true
 }
+
+variable "cloudfront_domain" {
+  description = "CloudFront CDN domain for static assets"
+  type        = string
+}

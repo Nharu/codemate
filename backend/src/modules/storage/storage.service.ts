@@ -65,9 +65,12 @@ export class StorageService {
             await this.s3Client.send(command);
 
             // Return the public URL
-            // S3_PUBLIC_URL is base URL (e.g., https://s3.region.amazonaws.com or CloudFront URL)
-            // Combine with bucket name and file name for full URL
-            const publicUrl = `${this.configService.getOrThrow<string>('S3_PUBLIC_URL')}/${this.bucketName}/${fileName}`;
+            // When using CloudFront (no S3_ENDPOINT), don't include bucket name in URL
+            // When using MinIO (with S3_ENDPOINT), include bucket name in URL
+            const s3Endpoint = this.configService.get<string>('S3_ENDPOINT');
+            const publicUrl = s3Endpoint
+                ? `${this.configService.getOrThrow<string>('S3_PUBLIC_URL')}/${this.bucketName}/${fileName}`
+                : `${this.configService.getOrThrow<string>('S3_PUBLIC_URL')}/${fileName}`;
 
             this.logger.log(`File uploaded successfully: ${fileName}`);
             return publicUrl;
@@ -83,8 +86,14 @@ export class StorageService {
         try {
             // Extract the key from the URL
             const url = new URL(fileUrl);
-            const pathParts = url.pathname.split('/');
-            const key = pathParts.slice(2).join('/'); // Remove bucket name from path
+            const pathParts = url.pathname.split('/').filter((p) => p); // Remove empty strings
+
+            // When using CloudFront (no S3_ENDPOINT), path is /filename
+            // When using MinIO (with S3_ENDPOINT), path is /bucket-name/filename
+            const s3Endpoint = this.configService.get<string>('S3_ENDPOINT');
+            const key = s3Endpoint
+                ? pathParts.slice(1).join('/') // Remove bucket name from path
+                : pathParts.join('/'); // Use entire path
 
             const command = new DeleteObjectCommand({
                 Bucket: this.bucketName,
